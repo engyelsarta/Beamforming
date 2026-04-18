@@ -1,5 +1,7 @@
 import React from 'react';
 import BaseTab from './BaseTab';
+import Sidebar from '../Sidebar';
+import FiveGNetworkMap from '../FiveGNetworkMap';
 
 export default class FiveGTab extends BaseTab {
   static defaultParams = {
@@ -14,16 +16,33 @@ export default class FiveGTab extends BaseTab {
     pulseDuration: 5.0,
     waveform: 'chirp', // OFDM-like spread maybe chirp visual
     window: 'hann',
+    users: [
+      { id: 1, x: 450, y: 350, color: 'hsl(45, 90%, 50%)' },
+      { id: 2, x: 600, y: 400, color: 'hsl(200, 80%, 55%)' },
+    ],
+    selectedUser: 1
   };
 
+  renderSharedVisuals() {
+    return null; // hide the standard polar plot for 5G view
+  }
+
   renderCustomVisuals() {
+    const { state, data, updateParam } = this.props;
+    return <FiveGNetworkMap state={state} data={data} updateParam={updateParam} />;
+  }
+
+  renderSidebar() {
     return (
-      <div className="viz-panel full-width" style={{ alignItems: 'center', justifyContent: 'center', display: 'flex' }}>
-        <div style={{ textAlign: 'center', fontFamily: "'Orbitron', monospace", color: 'var(--text-dim)' }}>
-          <div style={{ fontSize: '32px', color: 'var(--accent)', marginBottom: '16px' }}>5G NETWORK</div>
-          <div style={{ fontSize: '13px', letterSpacing: '2px' }}>Module framework active - Specific rendering coming soon</div>
-        </div>
-      </div>
+      <Sidebar 
+          state={this.props.state} 
+          updateParam={this.props.updateParam} 
+          updatePerSourceParam={this.props.updatePerSourceParam}
+          setWaveform={this.props.setWaveform}
+          setWindow={this.props.setWindow}
+          metrics={this.props.metrics}
+          is5G={true}
+      />
     );
   }
 }

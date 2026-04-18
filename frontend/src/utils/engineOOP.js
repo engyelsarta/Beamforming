@@ -240,7 +240,79 @@ export class Ultrasound_Simulator extends ApplicationMode {
 }
 
 export class FiveG_Simulator extends ApplicationMode {
-  // Specific 5G geometries (e.g. 2D planar arrays instead of 1D)
+  constructor() {
+    super();
+    this.towers = [
+      { id: 1, x: 300, y: 250, array: new PhasedArray(), engine: null },
+      { id: 2, x: 750, y: 250, array: new PhasedArray(), engine: null },
+      { id: 3, x: 525, y: 550, array: new PhasedArray(), engine: null },
+    ];
+    this.towers.forEach(t => {
+      t.engine = new BeamformerEngine(t.array);
+    });
+  }
+
+  update_view(state, perSourceParams = null) {
+    const users = state.users || [];
+    const influenceRadius = 250;
+    
+    const towerData = this.towers.map(tower => {
+      const connectedUsers = users.filter(u => {
+        const dist = Math.sqrt((u.x - tower.x) ** 2 + (u.y - tower.y) ** 2);
+        return dist < influenceRadius;
+      });
+
+      let steeringAngle = 0;
+      let amp = state.amplitude || 1.0;
+      let numElements = state.elements || 64;
+      
+      if (connectedUsers.length === 0) {
+        amp = 0.3 * (state.amplitude || 1.0);
+      } else {
+        const closest = connectedUsers.reduce((a, b) => {
+          const da = Math.sqrt((a.x - tower.x) ** 2 + (a.y - tower.y) ** 2);
+          const db = Math.sqrt((b.x - tower.x) ** 2 + (b.y - tower.y) ** 2);
+          return da < db ? a : b;
+        });
+        
+        const angleRad = Math.atan2(closest.y - tower.y, closest.x - tower.x);
+        steeringAngle = angleRad * 180 / Math.PI;
+        
+        const dist = Math.sqrt((closest.x - tower.x) ** 2 + (closest.y - tower.y) ** 2);
+        amp = Math.max(0.3, 1 - dist / influenceRadius) * (state.amplitude || 1.0);
+        
+        if (connectedUsers.length > 1) {
+            numElements = Math.min(128, Math.floor(numElements * 1.5));
+        }
+      }
+
+      const towerState = {
+         ...state,
+         steering: steeringAngle,
+         amplitude: amp,
+         elements: numElements
+      };
+      
+      // Update each tower's array directly and run pattern calculation
+      tower.array.update_parameters(towerState, perSourceParams);
+      const pattern = tower.engine.calculate_interference_pattern(towerState);
+      
+      return {
+        id: tower.id,
+        x: tower.x,
+        y: tower.y,
+        state: towerState,
+        pattern,
+        connectedUsers
+      };
+    });
+
+    return { 
+      type: '5g',
+      towers: towerData,
+      influenceRadius
+    };
+  }
 }
 
 export class Radar_Simulator extends ApplicationMode {
