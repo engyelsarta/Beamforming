@@ -256,7 +256,15 @@ export class FiveG_Simulator extends ApplicationMode {
     const users = state.users || [];
     const influenceRadius = 250;
     
+    const towerParams = state.towerParams || {
+      1: { elements: state.elements, spacing: state.spacing, freq: state.freq },
+      2: { elements: state.elements, spacing: state.spacing, freq: state.freq },
+      3: { elements: state.elements, spacing: state.spacing, freq: state.freq },
+    };
+
     const towerData = this.towers.map(tower => {
+      const tp = towerParams[tower.id] || { elements: 64, spacing: 0.5, freq: 28 };
+      
       const connectedUsers = users.filter(u => {
         const dist = Math.sqrt((u.x - tower.x) ** 2 + (u.y - tower.y) ** 2);
         return dist < influenceRadius;
@@ -264,7 +272,7 @@ export class FiveG_Simulator extends ApplicationMode {
 
       let steeringAngle = 0;
       let amp = state.amplitude || 1.0;
-      let numElements = state.elements || 64;
+      let numElements = tp.elements || 64;
       
       if (connectedUsers.length === 0) {
         amp = 0.3 * (state.amplitude || 1.0);
@@ -288,6 +296,8 @@ export class FiveG_Simulator extends ApplicationMode {
 
       const towerState = {
          ...state,
+         freq: tp.freq,
+         spacing: tp.spacing,
          steering: steeringAngle,
          amplitude: amp,
          elements: numElements

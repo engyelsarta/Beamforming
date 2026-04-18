@@ -1,6 +1,6 @@
 import React from 'react';
 import BaseTab from './BaseTab';
-import Sidebar from '../Sidebar';
+import FiveGSidebar from '../FiveGSidebar';
 import FiveGNetworkMap from '../FiveGNetworkMap';
 
 export default class FiveGTab extends BaseTab {
@@ -20,6 +20,11 @@ export default class FiveGTab extends BaseTab {
       { id: 1, x: 450, y: 350, color: 'hsl(45, 90%, 50%)' },
       { id: 2, x: 600, y: 400, color: 'hsl(200, 80%, 55%)' },
     ],
+    towerParams: {
+      1: { elements: 64, spacing: 0.5, freq: 28.0 },
+      2: { elements: 64, spacing: 0.5, freq: 28.0 },
+      3: { elements: 64, spacing: 0.5, freq: 28.0 },
+    },
     selectedUser: 1
   };
 
@@ -34,14 +39,9 @@ export default class FiveGTab extends BaseTab {
 
   renderSidebar() {
     return (
-      <Sidebar 
+      <FiveGSidebar 
           state={this.props.state} 
           updateParam={this.props.updateParam} 
-          updatePerSourceParam={this.props.updatePerSourceParam}
-          setWaveform={this.props.setWaveform}
-          setWindow={this.props.setWindow}
-          metrics={this.props.metrics}
-          is5G={true}
       />
     );
   }
