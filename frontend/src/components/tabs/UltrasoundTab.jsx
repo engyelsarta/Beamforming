@@ -1,27 +1,66 @@
-import React from 'react';
-import BaseTab from './BaseTab';
+import React, { Component, createRef } from 'react';
+import UltrasoundSidebar from '../ultrasound/UltrasoundSidebar';
+import PhantomViewer from '../ultrasound/PhantomViewer';
+import AModeViewer from '../ultrasound/AModeViewer';
+import BModeViewer from '../ultrasound/BModeViewer';
+import DopplerViewer from '../ultrasound/DopplerViewer';
+import { Ultrasound_Simulator } from '../../utils/engineOOP';
 
-export default class UltrasoundTab extends BaseTab {
+export default class UltrasoundTab extends Component {
   static defaultParams = {
-    elements: 128, // Medical ultrasound typical array size
-    spacing: 0.5,
+    freq: 5.0, // MHz
+    elements: 128,
+    spacing: 0.15, // mm (approx lambda/2 for 5MHz)
     steering: 0,
-    amplitude: 1.0,
-    phase: 0,
-    freq: 5.0, // MHz equivalent visual representation
-    power: 10,
-    snr: 600,
-    pulseDuration: 1.0,
-    waveform: 'pulsed',
-    window: 'blackman',
+    focalDepth: 60, // mm
+    pulseLength: 2, // cycles
+    snr: 40, // dB
+    window: 'hamming',
+    
+    // Vessel defaults
+    bloodVelocity: 40, // cm/s
+    vesselAngle: 15, // degrees
+    vesselDepth: 50, // mm
+    vesselDiameter: 6, // mm
   };
 
-  renderCustomVisuals() {
+  constructor(props) {
+    super(props);
+    this.sim = new Ultrasound_Simulator();
+    
+    this.state = {
+      regions: null,
+    };
+    
+    this.probePosRef = createRef();
+    this.probePosRef.current = 0.5;
+  }
+
+  setPhantomRegions = (regions) => {
+    this.setState({ regions });
+  };
+
+  render() {
+    const { state, updateParam, isVisible } = this.props;
+    const { regions } = this.state;
+
+    // Use default params if state is missing them (first render before App merges them)
+    const effectiveState = { ...UltrasoundTab.defaultParams, ...state };
+
     return (
-      <div className="viz-panel full-width" style={{ alignItems: 'center', justifyContent: 'center', display: 'flex' }}>
-        <div style={{ textAlign: 'center', fontFamily: "'Orbitron', monospace", color: 'var(--text-dim)' }}>
-          <div style={{ fontSize: '32px', color: 'var(--accent2)', marginBottom: '16px' }}>ULTRASOUND</div>
-          <div style={{ fontSize: '13px', letterSpacing: '2px' }}>Module framework active - Specific rendering coming soon</div>
+      <div className="main" style={{ display: isVisible ? 'flex' : 'none' }}>
+        <UltrasoundSidebar state={effectiveState} updateParam={updateParam} />
+
+        <div style={{
+          flex: 1, display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: '1fr 1fr',
+          gap: 1, background: 'var(--border)', overflow: 'hidden',
+        }}>
+           <PhantomViewer state={effectiveState} setPhantomRegions={this.setPhantomRegions} probePosRef={this.probePosRef} />
+           <BModeViewer state={effectiveState} regions={regions} probePosRef={this.probePosRef} updateParam={updateParam} />
+           <AModeViewer state={effectiveState} regions={regions} probePosRef={this.probePosRef} />
+           <DopplerViewer state={effectiveState} probePosRef={this.probePosRef} />
         </div>
       </div>
     );
