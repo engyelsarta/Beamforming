@@ -326,5 +326,6 @@ export class FiveG_Simulator extends ApplicationMode {
 }
 
 export class Radar_Simulator extends ApplicationMode {
-  // Unique sweep steering dynamics
+  // Extends ApplicationMode unchanged.
+  // RadarTab drives steering and calls update_parameters + calculate_interference_pattern directly.
 }
