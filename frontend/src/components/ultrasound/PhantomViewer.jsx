@@ -1,11 +1,17 @@
 import React, { useRef, useEffect, useState } from 'react';
 
 const INITIAL_PHANTOM = [
-  { id: 1, name: 'Background (Water)', cx: 0.5, cy: 0.5, rx: 0.48, ry: 0.48, angle: 0, c: 1480, rho: 1000, atten: 0.002, echo: 0.1 },
-  { id: 2, name: 'Organ A (Liver)', cx: 0.5, cy: 0.5, rx: 0.4, ry: 0.35, angle: 0, c: 1540, rho: 1060, atten: 0.5, echo: 0.6 },
-  { id: 3, name: 'Lesion 1 (Cyst)', cx: 0.35, cy: 0.45, rx: 0.08, ry: 0.1, angle: 0, c: 1500, rho: 1000, atten: 0.1, echo: 0.05 },
-  { id: 4, name: 'Lesion 2 (Tumor)', cx: 0.65, cy: 0.55, rx: 0.06, ry: 0.08, angle: -20, c: 1580, rho: 1040, atten: 0.8, echo: 0.8 },
-  { id: 5, name: 'Bone', cx: 0.5, cy: 0.75, rx: 0.05, ry: 0.15, angle: 90, c: 4080, rho: 1912, atten: 3.5, echo: 1.0 }
+  { id: 1, name: 'Background (Water)', cx: 0.5, cy: 0.5, rx: 0.5, ry: 0.5, angle: 0, c: 1480, rho: 1000, atten: 0.002, echo: 0.05 },
+  { id: 2, name: 'Skull (Shell)', cx: 0.5, cy: 0.5, rx: 0.345, ry: 0.46, angle: 0, c: 3500, rho: 1900, atten: 3.5, echo: 0.9 },
+  { id: 3, name: 'Brain (Interior)', cx: 0.5, cy: 0.5092, rx: 0.3312, ry: 0.437, angle: 0, c: 1540, rho: 1040, atten: 0.5, echo: 0.2 },
+  { id: 4, name: 'Ventricle L', cx: 0.61, cy: 0.5, rx: 0.055, ry: 0.155, angle: -18, c: 1500, rho: 1000, atten: 0.1, echo: 0.05 },
+  { id: 5, name: 'Ventricle R', cx: 0.39, cy: 0.5, rx: 0.08, ry: 0.205, angle: 18, c: 1500, rho: 1000, atten: 0.1, echo: 0.05 },
+  { id: 6, name: 'Lesion A', cx: 0.5, cy: 0.325, rx: 0.105, ry: 0.125, angle: 0, c: 1580, rho: 1060, atten: 0.8, echo: 0.4 },
+  { id: 7, name: 'Lesion B', cx: 0.5, cy: 0.45, rx: 0.023, ry: 0.023, angle: 0, c: 1580, rho: 1060, atten: 0.8, echo: 0.4 },
+  { id: 8, name: 'Lesion C', cx: 0.5, cy: 0.55, rx: 0.023, ry: 0.023, angle: 0, c: 1580, rho: 1060, atten: 0.8, echo: 0.4 },
+  { id: 9, name: 'Calcification 1', cx: 0.46, cy: 0.8025, rx: 0.023, ry: 0.0115, angle: 0, c: 4000, rho: 2000, atten: 4.0, echo: 1.0 },
+  { id: 10, name: 'Calcification 2', cx: 0.5, cy: 0.8025, rx: 0.0115, ry: 0.0115, angle: 0, c: 4000, rho: 2000, atten: 4.0, echo: 1.0 },
+  { id: 11, name: 'Calcification 3', cx: 0.53, cy: 0.8025, rx: 0.0115, ry: 0.023, angle: 0, c: 4000, rho: 2000, atten: 4.0, echo: 1.0 }
 ];
 
 export default function PhantomViewer({ state, setPhantomRegions, probePosRef }) {

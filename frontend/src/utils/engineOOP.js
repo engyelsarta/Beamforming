@@ -236,7 +236,100 @@ export class ApplicationMode {
 export class Beamforming_Simulator extends ApplicationMode {}
 
 export class Ultrasound_Simulator extends ApplicationMode {
-  // Can override update_parameters to build a curved array for a convex probe
+  // Base ultrasound simulation logic
+}
+
+export class AMode_Simulator extends Ultrasound_Simulator {
+  /**
+   * Generates a single scan line (A-mode signal)
+   */
+  generateLine(state, regions, probePos, angle, numSamples = 600, maxDepthMm = 200) {
+    const angleRad = (angle + 90) * Math.PI / 180;
+    const dx = Math.cos(angleRad);
+    const dy = Math.sin(angleRad);
+
+    const data = new Float32Array(numSamples);
+    
+    let currentRegionId = -1;
+    let currentZ = 1.5e6; // Default impedance (water)
+    let currentSignal = 1.0; 
+
+    for (let i = 0; i < numSamples; i++) {
+      const depthMm = (i / numSamples) * maxDepthMm;
+      const normalizedDist = depthMm / maxDepthMm;
+      
+      const px = probePos + normalizedDist * dx;
+      const py = 0.05 + normalizedDist * dy;
+      
+      let foundRegion = regions[0];
+      for (let j = regions.length - 1; j > 0; j--) {
+        const r = regions[j];
+        const rx_p = px - r.cx;
+        const ry_p = py - r.cy;
+        const cosA = Math.cos(-r.angle * Math.PI / 180);
+        const sinA = Math.sin(-r.angle * Math.PI / 180);
+        const locX = rx_p * cosA - ry_p * sinA;
+        const locY = rx_p * sinA + ry_p * cosA;
+        
+        if ((locX*locX)/(r.rx*r.rx) + (locY*locY)/(r.ry*r.ry) <= 1) {
+          foundRegion = r;
+          break;
+        }
+      }
+
+      const newZ = foundRegion.c * foundRegion.rho;
+      let reflection = 0;
+
+      if (foundRegion.id !== currentRegionId && currentRegionId !== -1) {
+        const R = Math.abs((newZ - currentZ) / (newZ + currentZ));
+        reflection = R * currentSignal;
+        currentSignal *= (1 - R * R);
+      }
+      
+      currentRegionId = foundRegion.id;
+      currentZ = newZ;
+
+      const alpha = foundRegion.atten;
+      const depthCm = depthMm / 10;
+      const lossDb = alpha * state.freq * depthCm;
+      const attenMult = Math.pow(10, -lossDb / 20);
+      
+      const scatter = (Math.random() * 0.05) * foundRegion.echo * attenMult * currentSignal;
+      const snrLin = Math.pow(10, state.snr / 20);
+      const noise = (Math.random() * 2 - 1) / snrLin;
+
+      data[i] = reflection + scatter + Math.abs(noise) * 0.5;
+      
+      // Focal zone highlight
+      if (Math.abs(depthMm - state.focalDepth) < 10) {
+         data[i] *= 1.2;
+      }
+    }
+    return data;
+  }
+}
+
+export class BMode_Simulator extends AMode_Simulator {
+  /**
+   * Generates a single scan line with B-mode specific processing (TGC)
+   */
+  generateLine(state, regions, probePos, angle, numSamples = 200, maxDepthMm = 200) {
+    const data = super.generateLine(state, regions, probePos, angle, numSamples, maxDepthMm);
+    
+    for (let i = 0; i < numSamples; i++) {
+      const depthMm = (i / numSamples) * maxDepthMm;
+      
+      // Apply TGC (Time Gain Compensation)
+      const tgcGain = 1.0 + (depthMm / maxDepthMm) * 5.0;
+      data[i] *= tgcGain;
+      
+      // Additional focal boost for B-mode visibility
+      if (Math.abs(depthMm - state.focalDepth) < 10) {
+         data[i] *= 1.25;
+      }
+    }
+    return data;
+  }
 }
 
 export class FiveG_Simulator extends ApplicationMode {

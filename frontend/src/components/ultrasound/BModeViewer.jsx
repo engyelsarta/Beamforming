@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { BMode_Simulator } from '../../utils/engineOOP';
 
 export default function BModeViewer({ state, regions, probePosRef, updateParam }) {
   const canvasRef = useRef(null);
@@ -69,81 +70,19 @@ export default function BModeViewer({ state, regions, probePosRef, updateParam }
       
       const numSamples = 200;
       const maxDepthMm = 200;
-      
-      const angleRad = (currentAngle + 90) * Math.PI / 180;
-      const dx = Math.cos(angleRad);
-      const dy = Math.sin(angleRad);
-
-      let currentRegionId = -1;
-      let currentZ = 1.5e6;
-      let currentSignal = 1.0; 
-      
-      // We will draw a line segment for each sample to create the sector
-      // Sector origin is at top center
       const originX = W / 2;
       const originY = 20;
       const maxDrawRadius = H - 40;
 
       ctx.lineWidth = 3; // Thicker lines to fill gaps in sector
 
+      const simulator = new BMode_Simulator();
+      const aModeData = simulator.generateLine(state, regions, probePosRef.current, currentAngle, numSamples, maxDepthMm);
+      
       for (let i = 0; i < numSamples; i++) {
-        const depthMm = (i / numSamples) * maxDepthMm;
-        const normalizedDist = depthMm / maxDepthMm;
-        
-        const px = probePosRef.current + normalizedDist * dx;
-        const py = 0.05 + normalizedDist * dy;
-        
-        let foundRegion = regions[0];
-        for (let j = regions.length - 1; j > 0; j--) {
-          const r = regions[j];
-          const rx_p = px - r.cx;
-          const ry_p = py - r.cy;
-          const cosA = Math.cos(-r.angle * Math.PI / 180);
-          const sinA = Math.sin(-r.angle * Math.PI / 180);
-          const locX = rx_p * cosA - ry_p * sinA;
-          const locY = rx_p * sinA + ry_p * cosA;
-          
-          if ((locX*locX)/(r.rx*r.rx) + (locY*locY)/(r.ry*r.ry) <= 1) {
-            foundRegion = r;
-            break;
-          }
-        }
-
-        const newZ = foundRegion.c * foundRegion.rho;
-        let reflection = 0;
-
-        if (foundRegion.id !== currentRegionId && currentRegionId !== -1) {
-          const R = Math.abs((newZ - currentZ) / (newZ + currentZ));
-          reflection = R * currentSignal;
-          currentSignal *= (1 - R * R);
-        }
-        
-        currentRegionId = foundRegion.id;
-        currentZ = newZ;
-
-        const alpha = foundRegion.atten;
-        const depthCm = depthMm / 10;
-        const lossDb = alpha * state.freq * depthCm;
-        const attenMult = Math.pow(10, -lossDb / 20);
-        
-        // TGC application (compensates for depth)
-        const tgcGain = 1.0 + (depthMm / maxDepthMm) * 5.0; // Simple linear TGC
-        
-        const scatter = (Math.random() * 0.05) * foundRegion.echo * attenMult * currentSignal;
-        const snrLin = Math.pow(10, state.snr / 20);
-        const noise = (Math.random() * 2 - 1) / snrLin;
-
-        let amplitude = (reflection + scatter + Math.abs(noise) * 0.5) * tgcGain;
-        
-        // Focal zone boost
-        if (Math.abs(depthMm - state.focalDepth) < 10) {
-           amplitude *= 1.5;
-        }
-
-        // Map amplitude to grayscale
+        const amplitude = aModeData[i];
         const gray = Math.min(255, Math.floor(amplitude * 1000));
         
-        // Calculate canvas coordinates for this sample segment
         const r1 = (i / numSamples) * maxDrawRadius;
         const r2 = ((i + 1) / numSamples) * maxDrawRadius;
         
