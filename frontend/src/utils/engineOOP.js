@@ -254,7 +254,8 @@ export class FiveG_Simulator extends ApplicationMode {
 
   update_view(state, perSourceParams = null) {
     const users = state.users || [];
-    const influenceRadius = 250;
+    const BASE_RADIUS = 300; // coverage radius (px) at BASE_FREQ GHz
+    const BASE_FREQ = 28;    // reference frequency in GHz
     
     const towerPositions = state.towers || [
       { id: 1, x: 300, y: 250 },
@@ -269,7 +270,6 @@ export class FiveG_Simulator extends ApplicationMode {
     };
 
     const towerData = towerPositions.map(towerPos => {
-      // Find corresponding internal tower or create if needed
       let tower = this.towers.find(t => t.id === towerPos.id);
       if (!tower) {
           tower = { id: towerPos.id, x: towerPos.x, y: towerPos.y, array: new PhasedArray(), engine: null };
@@ -281,46 +281,66 @@ export class FiveG_Simulator extends ApplicationMode {
       }
 
       const tp = towerParams[tower.id] || { elements: 64, spacing: 0.5, freq: 28 };
-      
-      const connectedUsers = users.filter(u => {
+      const numElements = tp.elements || 64;
+      const spacing     = tp.spacing  || 0.5;
+
+      // Higher frequency → shorter coverage radius (inverse relationship)
+      const towerFreq = tp.freq || BASE_FREQ;
+      const influenceRadius = Math.round(BASE_RADIUS * (BASE_FREQ / towerFreq));
+
+      // ── Step 1: Distance gate — candidates within coverage radius ──────────
+      const usersInRange = users.filter(u => {
         const dist = Math.sqrt((u.x - tower.x) ** 2 + (u.y - tower.y) ** 2);
         return dist < influenceRadius;
       });
 
       let steeringAngle = 0;
       let amp = state.amplitude || 1.0;
-      let numElements = tp.elements || 64;
-      
-      if (connectedUsers.length === 0) {
+      let connectedUsers = [];
+
+      if (usersInRange.length === 0) {
+        // No users in range — idle beam, reduced amplitude
         amp = 0.3 * (state.amplitude || 1.0);
       } else {
-        const closest = connectedUsers.reduce((a, b) => {
+        // ── Step 2: Find primary user (closest) — beam steers toward them ───
+        const primary = usersInRange.reduce((a, b) => {
           const da = Math.sqrt((a.x - tower.x) ** 2 + (a.y - tower.y) ** 2);
           const db = Math.sqrt((b.x - tower.x) ** 2 + (b.y - tower.y) ** 2);
           return da < db ? a : b;
         });
-        
-        const angleRad = Math.atan2(closest.y - tower.y, closest.x - tower.x);
-        steeringAngle = angleRad * 180 / Math.PI;
-        
-        const dist = Math.sqrt((closest.x - tower.x) ** 2 + (closest.y - tower.y) ** 2);
-        amp = Math.max(0.3, 1 - dist / influenceRadius) * (state.amplitude || 1.0);
-        
-        if (connectedUsers.length > 1) {
-            numElements = Math.min(128, Math.floor(numElements * 1.5));
-        }
+
+        const beamAngleRad = Math.atan2(primary.y - tower.y, primary.x - tower.x);
+        steeringAngle = beamAngleRad * 180 / Math.PI;
+
+        const primaryDist = Math.sqrt((primary.x - tower.x) ** 2 + (primary.y - tower.y) ** 2);
+        amp = Math.max(0.3, 1 - primaryDist / influenceRadius) * (state.amplitude || 1.0);
+
+        // ── Step 3: Analytical HPBW half-angle ──────────────────────────────
+        // HPBW = 2·arcsin(0.886 / (N·d/λ)) → half-angle = HPBW/2
+        // Matches the visual cone exactly. Small N → wide → multi-user served.
+        // Large N → narrow → only aligned user connected.
+        const sinHalf = Math.min(1, 0.886 / (Math.max(1, numElements) * Math.max(0.01, spacing)));
+        const beamHalfAngleRad = Math.asin(sinHalf);
+
+        // ── Step 4: Angular gate — only users within the beam cone ─────────
+        connectedUsers = usersInRange.filter(u => {
+          const userAngle = Math.atan2(u.y - tower.y, u.x - tower.x);
+          // Shortest angular difference, wrapping at ±π
+          let angDiff = Math.abs(userAngle - beamAngleRad);
+          if (angDiff > Math.PI) angDiff = 2 * Math.PI - angDiff;
+          return angDiff <= beamHalfAngleRad;
+        });
       }
 
       const towerState = {
          ...state,
-         freq: tp.freq,
-         spacing: tp.spacing,
+         freq:     tp.freq,
+         spacing:  spacing,
          steering: steeringAngle,
          amplitude: amp,
          elements: numElements
       };
       
-      // Update each tower's array directly and run pattern calculation
       tower.array.update_parameters(towerState, perSourceParams);
       const pattern = tower.engine.calculate_interference_pattern(towerState);
       
@@ -330,14 +350,14 @@ export class FiveG_Simulator extends ApplicationMode {
         y: tower.y,
         state: towerState,
         pattern,
-        connectedUsers
+        connectedUsers,
+        influenceRadius
       };
     });
 
     return { 
       type: '5g',
-      towers: towerData,
-      influenceRadius
+      towers: towerData
     };
   }
 }

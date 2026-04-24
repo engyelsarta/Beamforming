@@ -1,15 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { resizeCanvas } from '../utils/canvasUtils';
 
+// Analytical HPBW for a ULA: HPBW = 2 * arcsin(0.886 / (N * d/λ))
+// This is the correct physics: beamwidth ∝ 1/N
+function analyticalHPBW_deg(N, dLambda) {
+  const sinHalf = Math.min(1, 0.886 / (Math.max(1, N) * Math.max(0.01, dLambda)));
+  return 2 * Math.asin(sinHalf) * 180 / Math.PI;
+}
+
 export default function FiveGNetworkMap({ state, data, updateParam }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const [draggingTowerId, setDraggingTowerId] = useState(null);
-  
+
   const users = state?.users || [];
   const selectedUser = state?.selectedUser || 1;
-  const towersData = data?.type === '5g' ? data.towers : []; 
-  const influenceRadius = data?.influenceRadius || 250;
+  const towersData = data?.type === '5g' ? data.towers : [];
 
   const displayTowers = (state?.towers || [
     { id: 1, x: 300, y: 250 },
@@ -17,11 +23,12 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
     { id: 3, x: 525, y: 550 },
   ]).map(st => {
     const td = towersData.find(t => t.id === st.id);
-    return { 
-      ...st, 
+    return {
+      ...st,
       connectedUsers: td?.connectedUsers || [],
       state: td?.state,
-      pattern: td?.pattern
+      pattern: td?.pattern,
+      influenceRadius: td?.influenceRadius ?? 300  // per-tower, freq-dependent
     };
   });
 
@@ -30,7 +37,7 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
       if (!users || users.length === 0) return;
       const newUsers = users.map(u => {
         if (u.id !== selectedUser) return u;
-        const step = 20; 
+        const step = 20;
         switch (e.key) {
           case 'ArrowUp': case 'w': return { ...u, y: Math.max(10, u.y - step) };
           case 'ArrowDown': case 's': return { ...u, y: Math.min(2000, u.y + step) };
@@ -78,9 +85,9 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
     const { x, y } = getCoords(e);
 
     const currentTowers = state?.towers || [
-        { id: 1, x: 300, y: 250 },
-        { id: 2, x: 750, y: 250 },
-        { id: 3, x: 525, y: 550 },
+      { id: 1, x: 300, y: 250 },
+      { id: 2, x: 750, y: 250 },
+      { id: 3, x: 525, y: 550 },
     ];
 
     const newTowers = currentTowers.map(t => {
@@ -102,7 +109,7 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
       const canvas = canvasRef.current;
       const wrap = wrapRef.current;
       if (!canvas || !wrap) return;
-      
+
       resizeCanvas(canvas, wrap);
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -116,7 +123,7 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
         y: Math.min(u.y, h - 10)
       }));
 
-      ctx.fillStyle = '#0d1117'; 
+      ctx.fillStyle = '#0d1117';
       ctx.fillRect(0, 0, w, h);
 
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
@@ -129,43 +136,120 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
       }
 
       displayTowers.forEach(tower => {
-        ctx.strokeStyle = 'rgba(0, 255, 136, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        const ir = tower.influenceRadius;
+        // Soft zone extends 30% beyond ir so gradient fades naturally beyond boundary
+        const irOuter = ir * 1.3;
+
+        // Coverage zone — RADIAL GRADIENT: dense at center, transparent beyond ir
+        // Eliminates the hard binary ring edge; signal decays continuously
+        const freqRatio = Math.min(1, 300 / ir);
+        const r = Math.round(0 + freqRatio * 0);
+        const g = Math.round(255 - freqRatio * 60);
+        const b = Math.round(136 + freqRatio * 119);
+
+        const zoneGrad = ctx.createRadialGradient(tower.x, tower.y, 0, tower.x, tower.y, irOuter);
+        zoneGrad.addColorStop(0.0, `rgba(${r}, ${g}, ${b}, 0.13)`);  // center: visible
+        zoneGrad.addColorStop(0.55, `rgba(${r}, ${g}, ${b}, 0.07)`);  // mid: fading
+        zoneGrad.addColorStop(0.80, `rgba(${r}, ${g}, ${b}, 0.03)`);  // near edge: very faint
+        zoneGrad.addColorStop(1.0, `rgba(${r}, ${g}, ${b}, 0.00)`);  // beyond: transparent
+
+        ctx.fillStyle = zoneGrad;
         ctx.beginPath();
-        ctx.arc(tower.x, tower.y, influenceRadius, 0, Math.PI * 2);
+        ctx.arc(tower.x, tower.y, irOuter, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Soft boundary glow ring — very subtle, not a harsh line
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.18)`;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 6]);
+        ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.4)`;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(tower.x, tower.y, ir, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.shadowBlur = 0;
 
         const connectedUsers = tower.connectedUsers || [];
+        // Precompute analytical beam params once per tower
+        const towerN = tower.state?.elements || 64;
+        const towerD = tower.state?.spacing || 0.5;
+        const hpbwDeg = analyticalHPBW_deg(towerN, towerD);
+        const beamHalfAngle = Math.max(0.01, (hpbwDeg / 2) * Math.PI / 180);
+
         boundUsers.forEach(user => {
           const isConnected = connectedUsers.find(u => u.id === user.id);
           const dist = Math.sqrt((user.x - tower.x) ** 2 + (user.y - tower.y) ** 2);
-          
-          if (isConnected && dist < influenceRadius) {
-            const alpha = 1 - dist / influenceRadius;
-            ctx.strokeStyle = `rgba(0, 255, 136, ${alpha * 0.8})`;
-            ctx.lineWidth = 2;
-            ctx.shadowColor = '#00ff88';
-            ctx.shadowBlur = 10;
+
+          // Extend connection zone to irOuter — users up to 1.3×ir still show a fading tail
+          if (isConnected && dist < irOuter) {
+            // softEdge: 1.0 inside ir, fades smoothly to 0 between ir and irOuter
+            const softEdge = dist <= ir ? 1.0 : 1.0 - (dist - ir) / (irOuter - ir);
+            // ── Signal Strength Model ────────────────────────────────────────
+            // S ∝ sqrt(N / N_max) × (1 - d/R)² × softEdge
+            //   • arrayGain  : sqrt(N/128)              → more elements = stronger
+            //   • pathLoss   : (1-d/irOuter)^2          → continuous decay using outer radius
+            //   • softEdge   : 1 inside ir, 0→1 taper beyond — smooth boundary fade
+            const arrayGain = Math.sqrt(towerN / 128);
+            const pathLoss = Math.pow(Math.max(0, 1 - dist / irOuter), 2);
+            const strength = Math.min(1, arrayGain * pathLoss * softEdge);
+
+            // ── Color: HSL gradient blue(1) → green(0.6) → orange(0.3) → red(0) ──
+            // hue: 240(blue) → 0(red) as strength falls
+            const hue = Math.round(strength * 240);
+            const sat = 100;
+            const lit = Math.round(45 + strength * 15); // 45-60%
+            const signalColor = `hsl(${hue}, ${sat}%, ${lit}%)`;
+
+            // ── Connection line: thickness + glow scale with strength ────────
+            const lineWidth = 1 + strength * 4;          // 1px (weak) → 5px (strong)
+            const glowBlur = 4 + strength * 18;         // 4px → 22px
+            const lineAlpha = 0.4 + strength * 0.55;     // 0.4 → 0.95
+
+            ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${lineAlpha})`;
+            ctx.lineWidth = lineWidth;
+            ctx.shadowColor = signalColor;
+            ctx.shadowBlur = glowBlur;
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
             ctx.lineTo(user.x, user.y);
             ctx.stroke();
             ctx.shadowBlur = 0;
 
-            const hpbwDeg = parseFloat(tower.pattern?.metrics?.hpbw) || 20;
-            const hpbwRad = hpbwDeg * Math.PI / 180;
-            const beamWidth = Math.max(0.05, hpbwRad / 2);
+            // ── Beam cone fill — opacity encodes strength ────────────────────
             const angle = Math.atan2(user.y - tower.y, user.x - tower.x);
-            
-            ctx.fillStyle = `rgba(0, 255, 136, ${alpha * 0.15})`;
+            const coneAlpha = 0.05 + strength * 0.25;  // 0.05 (weak) → 0.30 (strong)
+
+            ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${coneAlpha})`;
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
-            ctx.lineTo(tower.x + influenceRadius * Math.cos(angle - beamWidth), tower.y + influenceRadius * Math.sin(angle - beamWidth));
-            ctx.arc(tower.x, tower.y, influenceRadius, angle - beamWidth, angle + beamWidth);
+            ctx.lineTo(tower.x + ir * Math.cos(angle - beamHalfAngle), tower.y + ir * Math.sin(angle - beamHalfAngle));
+            ctx.arc(tower.x, tower.y, ir, angle - beamHalfAngle, angle + beamHalfAngle);
             ctx.lineTo(tower.x, tower.y);
             ctx.fill();
+
+            // ── Beam edge dashed lines ───────────────────────────────────────
+            const edgeAlpha = 0.25 + strength * 0.45;
+            ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${edgeAlpha})`;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 5]);
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.moveTo(tower.x, tower.y);
+            ctx.lineTo(tower.x + ir * Math.cos(angle - beamHalfAngle), tower.y + ir * Math.sin(angle - beamHalfAngle));
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(tower.x, tower.y);
+            ctx.lineTo(tower.x + ir * Math.cos(angle + beamHalfAngle), tower.y + ir * Math.sin(angle + beamHalfAngle));
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // ── Strength label near midpoint ─────────────────────────────────
+            const mx = (tower.x + user.x) / 2;
+            const my = (tower.y + user.y) / 2;
+            ctx.fillStyle = `hsla(${hue}, ${sat}%, 80%, 0.85)`;
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText(`${Math.round(strength * 100)}%`, mx + 4, my - 4);
           }
         });
 
@@ -177,8 +261,8 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
         }
 
         if (draggingTowerId === tower.id) {
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#ffffff';
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = '#ffffff';
         }
 
         ctx.beginPath();
@@ -192,7 +276,7 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
         ctx.font = '10px monospace';
         ctx.fillText(`T${tower.id}`, tower.x - 6, tower.y + 20);
         if (tower.state) {
-            ctx.fillText(`θ=${Math.round(tower.state.steering)}° N=${tower.state.elements}`, tower.x - 30, tower.y + 32);
+          ctx.fillText(`θ=${Math.round(tower.state.steering)}° N=${tower.state.elements}`, tower.x - 30, tower.y + 32);
         }
       });
 
@@ -229,7 +313,7 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
     if (wrapRef.current) ro.observe(wrapRef.current);
 
     return () => ro.disconnect();
-  }, [towersData, users, selectedUser, influenceRadius, draggingTowerId]);
+  }, [towersData, users, selectedUser, draggingTowerId]);
 
   const setSelUser = (id) => updateParam('selectedUser', id);
 
@@ -269,7 +353,9 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
               <div style={{ fontSize: '11px', color: 'var(--text-dim, #78909c)', display: 'grid', gridTemplateColumns: '1fr auto', rowGap: '2px', fontFamily: "monospace" }}>
                 <span>θ:</span> <span style={{ color: '#fff' }}>{t.state.steering.toFixed(1)}°</span>
                 <span>Elements:</span> <span style={{ color: '#fff' }}>{t.state.elements}</span>
-                <span>HPBW:</span> <span style={{ color: '#fff' }}>{t.pattern?.metrics?.hpbw || '--'}°</span>
+                <span>HPBW:</span> <span style={{ color: '#fff' }}>{analyticalHPBW_deg(t.state.elements, t.state.spacing).toFixed(2)}°</span>
+                <span>Freq:</span> <span style={{ color: '#fff' }}>{t.state.freq?.toFixed(1)} GHz</span>
+                <span>Radius:</span> <span style={{ color: 'var(--accent2, #00c4ff)' }}>{t.influenceRadius} px</span>
               </div>
             </div>
           ))}
@@ -278,8 +364,8 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
 
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, position: 'relative' }}>
         <div ref={wrapRef} style={{ width: 'max(100%, 1400px)', height: 'max(100%, 900px)', position: 'relative' }}>
-          <canvas 
-            ref={canvasRef} 
+          <canvas
+            ref={canvasRef}
             onMouseDown={handleStart}
             onMouseMove={handleMove}
             onMouseUp={handleEnd}
@@ -287,7 +373,7 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
             onTouchStart={handleStart}
             onTouchMove={handleMove}
             onTouchEnd={handleEnd}
-            style={{ display: 'block', width: '100%', height: '100%', outline: 'none', cursor: draggingTowerId !== null ? 'grabbing' : 'default', touchAction: 'none' }} 
+            style={{ display: 'block', width: '100%', height: '100%', outline: 'none', cursor: draggingTowerId !== null ? 'grabbing' : 'default', touchAction: 'none' }}
           />
         </div>
       </div>
