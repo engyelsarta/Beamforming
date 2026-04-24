@@ -25,6 +25,11 @@ export default class FiveGTab extends BaseTab {
       2: { elements: 64, spacing: 0.5, freq: 28.0 },
       3: { elements: 64, spacing: 0.5, freq: 28.0 },
     },
+    towers: [
+      { id: 1, x: 300, y: 250 },
+      { id: 2, x: 750, y: 250 },
+      { id: 3, x: 525, y: 550 },
+    ],
     selectedUser: 1
   };
 

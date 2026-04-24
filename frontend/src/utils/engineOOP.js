@@ -256,13 +256,30 @@ export class FiveG_Simulator extends ApplicationMode {
     const users = state.users || [];
     const influenceRadius = 250;
     
+    const towerPositions = state.towers || [
+      { id: 1, x: 300, y: 250 },
+      { id: 2, x: 750, y: 250 },
+      { id: 3, x: 525, y: 550 },
+    ];
+
     const towerParams = state.towerParams || {
       1: { elements: state.elements, spacing: state.spacing, freq: state.freq },
       2: { elements: state.elements, spacing: state.spacing, freq: state.freq },
       3: { elements: state.elements, spacing: state.spacing, freq: state.freq },
     };
 
-    const towerData = this.towers.map(tower => {
+    const towerData = towerPositions.map(towerPos => {
+      // Find corresponding internal tower or create if needed
+      let tower = this.towers.find(t => t.id === towerPos.id);
+      if (!tower) {
+          tower = { id: towerPos.id, x: towerPos.x, y: towerPos.y, array: new PhasedArray(), engine: null };
+          tower.engine = new BeamformerEngine(tower.array);
+          this.towers.push(tower);
+      } else {
+          tower.x = towerPos.x;
+          tower.y = towerPos.y;
+      }
+
       const tp = towerParams[tower.id] || { elements: 64, spacing: 0.5, freq: 28 };
       
       const connectedUsers = users.filter(u => {
