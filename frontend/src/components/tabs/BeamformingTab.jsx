@@ -15,7 +15,7 @@ export default class BeamformingTab extends BaseTab {
     snr: 500,
     pulseDuration: 10.0,
     waveform: 'sinusoidal',
-    window: 'hamming',
+    window: 'rectangular',
   };
 
   renderCustomVisuals() {

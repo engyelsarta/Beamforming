@@ -56,13 +56,13 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
           <span className="param-name">Frequency</span>
           <span className="param-value">{(state.freq * 1000).toFixed(0)}<span className="param-unit">MHz</span></span>
         </div>
-        <input type="range" className="blue" min="500" max="100000" step="100" value={state.freq * 1000} onInput={(e) => updateParam('freq', parseFloat(e.target.value) / 1000)} />
+        <input type="range" className="blue" min="500" max="10000" step="100" value={state.freq * 1000} onInput={(e) => updateParam('freq', parseFloat(e.target.value) / 1000)} />
       </div>
 
       {!is5G && (
         <>
           <div className="section-label" style={{ marginTop: '4px' }}>Signal Control</div>
-          
+
           <div className="config-tabs">
             <button className={configMode === 'global' ? 'active param-global' : 'param-global'} onClick={() => setConfigMode('global')}>GLOBAL BEAM</button>
             <button className={configMode === 'antenna' ? 'active param-local' : 'param-local'} onClick={() => setConfigMode('antenna')}>PER ANTENNA</button>
@@ -98,7 +98,7 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
             <div className="config-panel local-panel">
               <div className="param" style={{ borderBottom: '1px solid rgba(255,107,53,0.3)', paddingBottom: '12px' }}>
                 <div className="param-header">
-                  <span className="param-name" style={{color: 'var(--accent3)'}}>Select Target Antenna</span>
+                  <span className="param-name" style={{ color: 'var(--accent3)' }}>Select Target Antenna</span>
                   <span className="param-value orange">#{activeAntenna}</span>
                 </div>
                 <input type="range" className="orange" min="0" max={state.elements - 1} step="1" value={activeAntenna} onChange={(e) => setActiveAntenna(parseInt(e.target.value))} />
@@ -134,8 +134,8 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
                 <input type="range" className="orange" min="-5.0" max="5.0" step="0.05" value={localY} onChange={(e) => handleAntennaParam('y', parseFloat(e.target.value))} />
               </div>
               <button className="reset-btn" onClick={() => {
-                  handleAntennaParam('amplitude', state.amplitude);
-                  handleAntennaParam('phase', 0);
+                handleAntennaParam('amplitude', state.amplitude);
+                handleAntennaParam('phase', 0);
               }}>⟳ Reset to Global Values</button>
             </div>
           )}
