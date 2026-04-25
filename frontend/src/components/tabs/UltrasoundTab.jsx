@@ -17,6 +17,7 @@ export default class UltrasoundTab extends Component {
     pulseLength: 2, // cycles
     snr: 40, // dB
     window: 'hamming',
+    dynamicRange: 60, // dB (Dynamic Range)
     
     // Vessel defaults
     bloodVelocity: 40, // cm/s

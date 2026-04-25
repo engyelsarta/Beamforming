@@ -80,6 +80,14 @@ export default function UltrasoundSidebar({ state, updateParam }) {
       </div>
 
       <div className="param">
+        <div className="param-header">
+          <span className="param-name">Dynamic Range (DR)</span>
+          <span className="param-value">{state.dynamicRange || 60}<span className="param-unit">dB</span></span>
+        </div>
+        <input type="range" className="blue" min="20" max="90" step="1" value={state.dynamicRange || 60} onChange={(e) => updateParam('dynamicRange', parseFloat(e.target.value))} />
+      </div>
+
+      <div className="param">
         <div className="param-header"><span className="param-name">Window (Apodization)</span></div>
         <select value={state.window} onChange={(e) => updateParam('window', e.target.value)}>
           <option value="rectangular">None (Rectangular)</option>

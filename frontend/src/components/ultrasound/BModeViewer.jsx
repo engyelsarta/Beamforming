@@ -77,9 +77,10 @@ export default function BModeViewer({ state, regions, probePosRef, updateParam }
       if (isScanning) {
         // Fast sweep without fading so the entire image is preserved and clearly visible
         const sweepSpeed = 8; // sweep 8 degrees per frame
-        const angleResolution = 1.5; // dense rays for gapless image
+        const angleResolution = 1.0; // Denser rays (1.0 instead of 1.5) to remove streakiness
 
-        ctx.lineWidth = 3.5;
+        // Thicker line width to guarantee overlapping lines at maximum depth
+        ctx.lineWidth = 5.0;
 
         let nextAngle = scanAngleRef.current + scanDirRef.current * sweepSpeed;
         const startA = Math.min(scanAngleRef.current, nextAngle);
@@ -90,8 +91,16 @@ export default function BModeViewer({ state, regions, probePosRef, updateParam }
 
           for (let i = 0; i < numSamples; i++) {
             const amplitude = aModeData[i];
-            // Reverted to preferred linear brightness mapping
-            const gray = Math.min(255, Math.floor(amplitude * 1000));
+            // Apply Dynamic Range (Log Compression)
+            const refAmp = 0.5; // Expected max amplitude reference
+            const dr = state.dynamicRange || 60; // Dynamic range in dB
+            
+            // Convert amplitude to dB relative to refAmp
+            const signalDb = 20 * Math.log10(Math.max(1e-6, amplitude / refAmp));
+            
+            // Map [-dr, 0] to [0, 255]
+            let gray = 255 * (signalDb + dr) / dr;
+            gray = Math.max(0, Math.min(255, Math.floor(gray)));
 
             if (gray < 2) continue; // Skip drawing pure black to preserve antialiasing
 
@@ -132,7 +141,16 @@ export default function BModeViewer({ state, regions, probePosRef, updateParam }
 
         for (let i = 0; i < numSamples; i++) {
           const amplitude = aModeData[i];
-          const gray = Math.min(255, Math.floor(amplitude * 1000));
+          // Apply Dynamic Range (Log Compression)
+          const refAmp = 0.5; // Expected max amplitude reference
+          const dr = state.dynamicRange || 60; // Dynamic range in dB
+          
+          // Convert amplitude to dB relative to refAmp
+          const signalDb = 20 * Math.log10(Math.max(1e-6, amplitude / refAmp));
+          
+          // Map [-dr, 0] to [0, 255]
+          let gray = 255 * (signalDb + dr) / dr;
+          gray = Math.max(0, Math.min(255, Math.floor(gray)));
 
           if (gray < 2) continue;
 
