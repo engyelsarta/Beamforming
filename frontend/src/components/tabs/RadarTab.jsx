@@ -218,8 +218,7 @@ export default class RadarTab extends Component {
                         </div>
                       )}
                       <div style={{ color: 'var(--text-dim)', marginTop: 2 }}>
-                        Signal: <span style={{ color: '#00c4ff' }}>{e.strength.toFixed(1)} dB</span> &nbsp;
-                        Gain: <span style={{ color: '#00c4ff' }}>{(e.afGain * 100).toFixed(0)}%</span>
+                        Signal: <span style={{ color: '#00c4ff' }}>{e.strength.toFixed(1)} dB</span>
                       </div>
                     </div>
                   );

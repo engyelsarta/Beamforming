@@ -211,7 +211,11 @@ export default function RadarPlot({ state, data, updateParam, beamAngleRef, bwRe
 
       // ── Objects ───────────────────────────────────────────────────────
       const objects     = state.objects || [];
-      const detectedIds = new Set((data?.echoes || []).map(e => e.id));
+      const detectedIds = new Set(
+    (data?.echoes || [])
+        .filter(e => e.isDetectable)
+        .map(e => e.id)
+);
       const isDragging  = dragRef.current !== null;
 
       for (const obj of objects) {
