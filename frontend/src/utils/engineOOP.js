@@ -1,21 +1,21 @@
 export function besselI0(x) {
-  let s=1, t=1;
-  for(let k=1;k<=20;k++){t*=(x/2/k)**2;s+=t;}
+  let s = 1, t = 1;
+  for (let k = 1; k <= 20; k++) { t *= (x / 2 / k) ** 2; s += t; }
   return s;
 }
 
 export function applyWindowFn(N, type) {
   const w = new Float64Array(N);
   for (let n = 0; n < N; n++) {
-    switch(type) {
-      case 'hamming':  w[n] = 0.54 - 0.46 * Math.cos(2*Math.PI*n/(N-1)); break;
-      case 'hanning':  w[n] = 0.5 * (1 - Math.cos(2*Math.PI*n/(N-1))); break;
-      case 'blackman': w[n] = 0.42 - 0.5*Math.cos(2*Math.PI*n/(N-1)) + 0.08*Math.cos(4*Math.PI*n/(N-1)); break;
+    switch (type) {
+      case 'hamming': w[n] = 0.54 - 0.46 * Math.cos(2 * Math.PI * n / (N - 1)); break;
+      case 'hanning': w[n] = 0.5 * (1 - Math.cos(2 * Math.PI * n / (N - 1))); break;
+      case 'blackman': w[n] = 0.42 - 0.5 * Math.cos(2 * Math.PI * n / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * n / (N - 1)); break;
       case 'kaiser': {
         const beta = 8.6;
         const I0b = besselI0(beta);
-        const x = 2*n/(N-1) - 1;
-        w[n] = besselI0(beta * Math.sqrt(1 - x*x)) / I0b;
+        const x = 2 * n / (N - 1) - 1;
+        w[n] = besselI0(beta * Math.sqrt(1 - x * x)) / I0b;
         break;
       }
       default: w[n] = 1.0;
@@ -25,18 +25,18 @@ export function applyWindowFn(N, type) {
 }
 
 export function waveformFactor(wf) {
-  return {sinusoidal:1.0,pulsed:0.85,gaussian:0.9,chirp:1.15}[wf]||1.0;
+  return { sinusoidal: 1.0, pulsed: 0.85, gaussian: 0.9, chirp: 1.15 }[wf] || 1.0;
 }
 
 export class SignalSource {
-  constructor(id, x, y, freq, phaseOffset=0, amplitude=1.0) {
+  constructor(id, x, y, freq, phaseOffset = 0, amplitude = 1.0) {
     this.id = id;
     this.x = x;
     this.y = y;
     this.freq = freq;
-    this.phaseOffset = phaseOffset; 
-    this.amplitude = amplitude; 
-    this.weight = 1.0; 
+    this.phaseOffset = phaseOffset;
+    this.amplitude = amplitude;
+    this.weight = 1.0;
   }
 }
 
@@ -49,16 +49,16 @@ export class PhasedArray {
     this.sources = [];
     // Using simple generic normalized spacing coordinates where distance D=spacing
     for (let i = 0; i < N; i++) {
-        this.sources.push(new SignalSource(i, i * spacing, 0, 2.4, 0, 1.0));
+      this.sources.push(new SignalSource(i, i * spacing, 0, 2.4, 0, 1.0));
     }
   }
 
   apply_apodization(window_type) {
     const N = this.sources.length;
-    if(N === 0) return;
+    if (N === 0) return;
     const w = applyWindowFn(N, window_type);
     for (let i = 0; i < N; i++) {
-        this.sources[i].weight = w[i];
+      this.sources[i].weight = w[i];
     }
   }
 
@@ -66,148 +66,148 @@ export class PhasedArray {
     const thetaSteer = theta_deg * Math.PI / 180;
     const k = 2 * Math.PI * (base_freq / 2.4);
     for (const src of this.sources) {
-        src.phaseOffset = -k * (src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer));
+      src.phaseOffset = -k * (src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer));
     }
   }
-  
+
   update_parameters(globalParams, perSourceParams = null) {
-      if(this.sources.length !== globalParams.elements) {
-          this.build_linear_array(globalParams.elements, globalParams.spacing);
-      } else {
-          // Re-adjust spacing if needed
-          for (let i = 0; i < this.sources.length; i++) {
-              this.sources[i].x = i * globalParams.spacing;
-          }
+    if (this.sources.length !== globalParams.elements) {
+      this.build_linear_array(globalParams.elements, globalParams.spacing);
+    } else {
+      // Re-adjust spacing if needed
+      for (let i = 0; i < this.sources.length; i++) {
+        this.sources[i].x = i * globalParams.spacing;
       }
-      
-      this.set_steering_angle(globalParams.steering, globalParams.freq);
-      this.apply_apodization(globalParams.window);
-      
-      const phi0 = (globalParams.phase || 0) * Math.PI / 180;
-      
-      for(let i=0; i<this.sources.length; i++) {
-          const src = this.sources[i];
-          src.freq = globalParams.freq;
-          src.amplitude = globalParams.amplitude;
-          src.phaseOffset += phi0;
-          
-          // Apply per-antenna configurations cleanly decoupling from global params
-          if(perSourceParams && perSourceParams[i]) {
-              const p = perSourceParams[i];
-              if(p.amplitude !== undefined) src.amplitude = p.amplitude;
-              if(p.phase !== undefined) src.phaseOffset += p.phase * Math.PI / 180;
-              if(p.x !== undefined) src.x = p.x;
-              if(p.y !== undefined) src.y = p.y;
-          }
+    }
+
+    this.set_steering_angle(globalParams.steering, globalParams.freq);
+    this.apply_apodization(globalParams.window);
+
+    const phi0 = (globalParams.phase || 0) * Math.PI / 180;
+
+    for (let i = 0; i < this.sources.length; i++) {
+      const src = this.sources[i];
+      src.freq = globalParams.freq;
+      src.amplitude = globalParams.amplitude;
+      src.phaseOffset += phi0;
+
+      // Apply per-antenna configurations cleanly decoupling from global params
+      if (perSourceParams && perSourceParams[i]) {
+        const p = perSourceParams[i];
+        if (p.amplitude !== undefined) src.amplitude = p.amplitude;
+        if (p.phase !== undefined) src.phaseOffset += p.phase * Math.PI / 180;
+        if (p.x !== undefined) src.x = p.x;
+        if (p.y !== undefined) src.y = p.y;
       }
+    }
   }
 }
 
 export class BeamformerEngine {
   constructor(array) {
-      this.array = array;
-      this.globalParams = null;
+    this.array = array;
+    this.globalParams = null;
   }
 
   calculate_interference_pattern(params) {
     this.globalParams = params;
     const { power, snr, waveform } = params;
-    
+
     const snrLin = snr + 1e-4; // Now processing in linear scale 0 - 1000
     const noiseStd = params.amplitude / Math.sqrt(2 * snrLin);
     const wfFactor = waveformFactor(waveform);
 
     const sources = this.array.sources;
     const N = sources.length;
-    if(N === 0) return null;
-    
+    if (N === 0) return null;
+
     const M = 900;
     const theta = new Float64Array(M);
     const AF_re = new Float64Array(M);
     const AF_im = new Float64Array(M);
 
     for (let i = 0; i < M; i++) {
-      theta[i] = -Math.PI/2 + (Math.PI/(M-1)) * i;
+      theta[i] = -Math.PI / 2 + (Math.PI / (M - 1)) * i;
       const MathSinTheta = Math.sin(theta[i]);
       const MathCosTheta = Math.cos(theta[i]);
-      
+
       for (let n = 0; n < N; n++) {
         const src = sources[n];
         const k = 2 * Math.PI * (src.freq / 2.4);
         const psi = k * (src.x * MathSinTheta + src.y * MathCosTheta) + src.phaseOffset;
-        
-        AF_re[i] += src.amplitude * src.weight * Math.cos(psi) + (Math.random()*2-1)*noiseStd*0.3;
-        AF_im[i] += src.amplitude * src.weight * Math.sin(psi) + (Math.random()*2-1)*noiseStd*0.3;
+
+        AF_re[i] += src.amplitude * src.weight * Math.cos(psi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
+        AF_im[i] += src.amplitude * src.weight * Math.sin(psi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
       }
     }
 
     let maxMag = 0;
     const AF_mag = new Float64Array(M);
-    for (let i=0;i<M;i++) {
-      AF_mag[i] = Math.sqrt(AF_re[i]**2 + AF_im[i]**2);
-      if(AF_mag[i]>maxMag) maxMag=AF_mag[i];
+    for (let i = 0; i < M; i++) {
+      AF_mag[i] = Math.sqrt(AF_re[i] ** 2 + AF_im[i] ** 2);
+      if (AF_mag[i] > maxMag) maxMag = AF_mag[i];
     }
 
     const AF_norm = new Float64Array(M);
     const AF_db = new Float64Array(M);
-    for (let i=0;i<M;i++) {
-      AF_norm[i] = (AF_mag[i]/(maxMag+1e-12)) ** wfFactor;
-      AF_db[i] = Math.max(-60, 20*Math.log10(AF_norm[i]+1e-12));
+    for (let i = 0; i < M; i++) {
+      AF_norm[i] = (AF_mag[i] / (maxMag + 1e-12)) ** wfFactor;
+      AF_db[i] = Math.max(-60, 20 * Math.log10(AF_norm[i] + 1e-12));
     }
 
-    const halfPow = 1/Math.SQRT2;
-    let first=-1, last=-1;
-    for(let i=0;i<M;i++){if(AF_norm[i]>=halfPow){if(first<0)first=i;last=i;}}
-    const hpbw = (first>=0&&last>=0) ? Math.abs((theta[last]-theta[first])*180/Math.PI) : 0;
+    const halfPow = 1 / Math.SQRT2;
+    let first = -1, last = -1;
+    for (let i = 0; i < M; i++) { if (AF_norm[i] >= halfPow) { if (first < 0) first = i; last = i; } }
+    const hpbw = (first >= 0 && last >= 0) ? Math.abs((theta[last] - theta[first]) * 180 / Math.PI) : 0;
 
-    let mainIdx=0;
-    for(let i=1;i<M;i++) if(AF_norm[i]>AF_norm[mainIdx]) mainIdx=i;
-    let sllMax=0;
-    for(let i=0;i<M;i++) if(Math.abs(i-mainIdx)>30 && AF_norm[i]>sllMax) sllMax=AF_norm[i];
-    const sll_db = 20*Math.log10(sllMax+1e-12);
+    let mainIdx = 0;
+    for (let i = 1; i < M; i++) if (AF_norm[i] > AF_norm[mainIdx]) mainIdx = i;
+    let sllMax = 0;
+    for (let i = 0; i < M; i++) if (Math.abs(i - mainIdx) > 30 && AF_norm[i] > sllMax) sllMax = AF_norm[i];
+    const sll_db = 20 * Math.log10(sllMax + 1e-12);
 
     const noiseFloor = power - (10 * Math.log10(snrLin));
     let sumAmp = 0;
-    for(const src of sources) sumAmp += src.amplitude;
-    const avgAmp = sumAmp/N;
-    
-    const eirp = power + 10*Math.log10(N) + 20*Math.log10(avgAmp+1e-12);
-    const directivity = 10*Math.log10(N) + 20*Math.log10(avgAmp+1e-12);
+    for (const src of sources) sumAmp += src.amplitude;
+    const avgAmp = sumAmp / N;
+
+    const eirp = power + 10 * Math.log10(N) + 20 * Math.log10(avgAmp + 1e-12);
+    const directivity = 10 * Math.log10(N) + 20 * Math.log10(avgAmp + 1e-12);
 
     // 2D FIELD map for visualizer
     const GS = 120;
     const field = [];
-    for (let row=0;row<GS;row++) {
+    for (let row = 0; row < GS; row++) {
       const rowArr = new Float32Array(GS);
-      const Y = 1.5 - (row/(GS-1))*1.5;
-      for (let col=0;col<GS;col++) {
-        const X = -1 + (col/(GS-1))*2;
-        const R = Math.sqrt(X*X+Y*Y)+1e-9;
-        
-        let re=0, im=0;
-        const tg = Math.atan2(X,Y); // Angle from Y axis
+      const Y = 1.5 - (row / (GS - 1)) * 1.5;
+      for (let col = 0; col < GS; col++) {
+        const X = -1 + (col / (GS - 1)) * 2;
+        const R = Math.sqrt(X * X + Y * Y) + 1e-9;
+
+        let re = 0, im = 0;
+        const tg = Math.atan2(X, Y); // Angle from Y axis
         const MathSinTg = Math.sin(tg);
         const MathCosTg = Math.cos(tg);
-        for(let n=0;n<N;n++){
+        for (let n = 0; n < N; n++) {
           const src = sources[n];
           const k = 2 * Math.PI * (src.freq / 2.4);
           const psi = k * (src.x * MathSinTg + src.y * MathCosTg) + src.phaseOffset;
-          
+
           re += src.amplitude * src.weight * Math.cos(psi);
           im += src.amplitude * src.weight * Math.sin(psi);
         }
-        let v = Math.sqrt(re*re+im*im)**wfFactor / (Math.pow(R,0.8)+0.1);
+        let v = Math.sqrt(re * re + im * im) ** wfFactor / (Math.pow(R, 0.8) + 0.1);
         rowArr[col] = v;
       }
       field.push(rowArr);
     }
-    
-    let fMax=0;
-    for(const row of field) for(const v of row) if(v>fMax) fMax=v;
-    const fieldNorm = field.map(row => Array.from(row).map(v=>v/(fMax+1e-9)));
+
+    let fMax = 0;
+    for (const row of field) for (const v of row) if (v > fMax) fMax = v;
+    const fieldNorm = field.map(row => Array.from(row).map(v => v / (fMax + 1e-9)));
 
     return {
-      theta: Array.from(theta).map(t=>t*180/Math.PI),
+      theta: Array.from(theta).map(t => t * 180 / Math.PI),
       AF_norm: Array.from(AF_norm),
       AF_db: Array.from(AF_db),
       field: fieldNorm,
@@ -224,16 +224,16 @@ export class BeamformerEngine {
 
 export class ApplicationMode {
   constructor() {
-     this.array = new PhasedArray();
-     this.engine = new BeamformerEngine(this.array);
+    this.array = new PhasedArray();
+    this.engine = new BeamformerEngine(this.array);
   }
-  update_view(state, perSourceParams=null) {
+  update_view(state, perSourceParams = null) {
     this.array.update_parameters(state, perSourceParams);
     return this.engine.calculate_interference_pattern(state);
   }
 }
 
-export class Beamforming_Simulator extends ApplicationMode {}
+export class Beamforming_Simulator extends ApplicationMode { }
 
 export class Ultrasound_Simulator extends ApplicationMode {
   // Base ultrasound simulation logic
@@ -249,18 +249,18 @@ export class AMode_Simulator extends Ultrasound_Simulator {
     const dy = Math.sin(angleRad);
 
     const data = new Float32Array(numSamples);
-    
+
     let currentRegionId = -1;
     let currentZ = 1.5e6; // Default impedance (water)
-    let currentSignal = 1.0; 
+    let currentSignal = 1.0;
 
     for (let i = 0; i < numSamples; i++) {
       const depthMm = (i / numSamples) * maxDepthMm;
       const normalizedDist = depthMm / maxDepthMm;
-      
+
       const px = probePos + normalizedDist * dx;
       const py = 0.05 + normalizedDist * dy;
-      
+
       let foundRegion = regions[0];
       for (let j = regions.length - 1; j > 0; j--) {
         const r = regions[j];
@@ -270,8 +270,8 @@ export class AMode_Simulator extends Ultrasound_Simulator {
         const sinA = Math.sin(-r.angle * Math.PI / 180);
         const locX = rx_p * cosA - ry_p * sinA;
         const locY = rx_p * sinA + ry_p * cosA;
-        
-        if ((locX*locX)/(r.rx*r.rx) + (locY*locY)/(r.ry*r.ry) <= 1) {
+
+        if ((locX * locX) / (r.rx * r.rx) + (locY * locY) / (r.ry * r.ry) <= 1) {
           foundRegion = r;
           break;
         }
@@ -285,7 +285,7 @@ export class AMode_Simulator extends Ultrasound_Simulator {
         reflection = R * currentSignal;
         currentSignal *= (1 - R * R);
       }
-      
+
       currentRegionId = foundRegion.id;
       currentZ = newZ;
 
@@ -293,16 +293,16 @@ export class AMode_Simulator extends Ultrasound_Simulator {
       const depthCm = depthMm / 10;
       const lossDb = alpha * state.freq * depthCm;
       const attenMult = Math.pow(10, -lossDb / 20);
-      
+
       const scatter = (Math.random() * 0.05) * foundRegion.echo * attenMult * currentSignal;
       const snrLin = Math.pow(10, state.snr / 20);
       const noise = (Math.random() * 2 - 1) / snrLin;
 
       data[i] = reflection + scatter + Math.abs(noise) * 0.5;
-      
+
       // Focal zone highlight
       if (Math.abs(depthMm - state.focalDepth) < 10) {
-         data[i] *= 1.2;
+        data[i] *= 1.2;
       }
     }
     return data;
@@ -315,17 +315,17 @@ export class BMode_Simulator extends AMode_Simulator {
    */
   generateLine(state, regions, probePos, angle, numSamples = 200, maxDepthMm = 200) {
     const data = super.generateLine(state, regions, probePos, angle, numSamples, maxDepthMm);
-    
+
     for (let i = 0; i < numSamples; i++) {
       const depthMm = (i / numSamples) * maxDepthMm;
-      
+
       // Apply TGC (Time Gain Compensation)
       const tgcGain = 1.0 + (depthMm / maxDepthMm) * 5.0;
       data[i] *= tgcGain;
-      
+
       // Additional focal boost for B-mode visibility
       if (Math.abs(depthMm - state.focalDepth) < 10) {
-         data[i] *= 1.25;
+        data[i] *= 1.25;
       }
     }
     return data;
@@ -349,7 +349,7 @@ export class FiveG_Simulator extends ApplicationMode {
     const users = state.users || [];
     const BASE_RADIUS = 300; // coverage radius (px) at BASE_FREQ GHz
     const BASE_FREQ = 28;    // reference frequency in GHz
-    
+
     const towerPositions = state.towers || [
       { id: 1, x: 300, y: 250 },
       { id: 2, x: 750, y: 250 },
@@ -365,17 +365,17 @@ export class FiveG_Simulator extends ApplicationMode {
     const towerData = towerPositions.map(towerPos => {
       let tower = this.towers.find(t => t.id === towerPos.id);
       if (!tower) {
-          tower = { id: towerPos.id, x: towerPos.x, y: towerPos.y, array: new PhasedArray(), engine: null };
-          tower.engine = new BeamformerEngine(tower.array);
-          this.towers.push(tower);
+        tower = { id: towerPos.id, x: towerPos.x, y: towerPos.y, array: new PhasedArray(), engine: null };
+        tower.engine = new BeamformerEngine(tower.array);
+        this.towers.push(tower);
       } else {
-          tower.x = towerPos.x;
-          tower.y = towerPos.y;
+        tower.x = towerPos.x;
+        tower.y = towerPos.y;
       }
 
       const tp = towerParams[tower.id] || { elements: 64, spacing: 0.5, freq: 28 };
       const numElements = tp.elements || 64;
-      const spacing     = tp.spacing  || 0.5;
+      const spacing = tp.spacing || 0.5;
 
       // Higher frequency → shorter coverage radius (inverse relationship)
       const towerFreq = tp.freq || BASE_FREQ;
@@ -426,17 +426,17 @@ export class FiveG_Simulator extends ApplicationMode {
       }
 
       const towerState = {
-         ...state,
-         freq:     tp.freq,
-         spacing:  spacing,
-         steering: steeringAngle,
-         amplitude: amp,
-         elements: numElements
+        ...state,
+        freq: tp.freq,
+        spacing: spacing,
+        steering: steeringAngle,
+        amplitude: amp,
+        elements: numElements
       };
-      
+
       tower.array.update_parameters(towerState, perSourceParams);
       const pattern = tower.engine.calculate_interference_pattern(towerState);
-      
+
       return {
         id: tower.id,
         x: tower.x,
@@ -448,7 +448,7 @@ export class FiveG_Simulator extends ApplicationMode {
       };
     });
 
-    return { 
+    return {
       type: '5g',
       towers: towerData
     };
@@ -456,5 +456,255 @@ export class FiveG_Simulator extends ApplicationMode {
 }
 
 export class Radar_Simulator extends ApplicationMode {
-  // Unique sweep steering dynamics
+  constructor() {
+    super();
+    this.phase = 'SCANNING'; 
+    this.currentAngle = 0;
+    this.targetId = null;
+    this.dwellTimer = 0;
+    this.measuredSizes = {}; 
+    this.recentlyMeasured = new Set(); 
+    this.lastDetectionTime = 0;
+    this.effectiveBeamWidth = 15;
+    this.physicsHpbw = 15;
+
+    // Bug 1: Focus Queue
+    this.focusQueue = []; // Array of { angle, id (if resolved), isBlob }
+    this.focusQueueIndex = 0;
+    this.confirmedTargets = new Map(); // id -> { angle, distance, size, time }
+  }
+
+  tick(dt, state) {
+    const objects = state.objects || [];
+    const baseSpeed = state.scanSpeed || 60;
+    const maxRange = state.maxRange || 2000;
+    const snr = state.snr ?? 20;
+
+    if (this.phase === 'SCANNING') {
+      const userBw = state.beamWidth || 15;
+      this.effectiveBeamWidth = userBw;
+
+      const speedScale = this.effectiveBeamWidth / 15;
+      const actualSpeed = baseSpeed * speedScale;
+      this.currentAngle = (this.currentAngle + actualSpeed * dt) % 360;
+
+      // 1. Find all objects in broad beam
+      const detectedInBeam = objects.filter(obj => 
+        this._isObjectInBeam(obj, this.currentAngle, this.effectiveBeamWidth, maxRange, snr)
+      );
+
+      if (detectedInBeam.length > 0) {
+        // Grouping logic: Two bodies sep < beamWidth merge into one
+        // For simplicity, we'll find the average angle of all detected in the current beam
+        const avgAngle = detectedInBeam.reduce((sum, o) => sum + o.angle, 0) / detectedInBeam.length;
+        
+        // Check if this "detection" is already in queue or confirmed
+        const isQueued = this.focusQueue.some(q => Math.abs(q.angle - avgAngle) < this.effectiveBeamWidth / 2);
+        const isConfirmed = Array.from(this.confirmedTargets.values()).some(c => 
+          Math.abs(c.angle - avgAngle) < this.effectiveBeamWidth / 2
+        );
+
+        if (!isQueued && !isConfirmed) {
+          this.focusQueue.push({ angle: avgAngle, isBlob: true });
+        }
+      }
+
+      // If queue has items, start focusing only after the beam has passed the target
+      if (this.focusQueue.length > 0) {
+        const firstTarget = this.focusQueue[0];
+        let angDiff = this.currentAngle - firstTarget.angle;
+        if (angDiff > 180) angDiff -= 360;
+        if (angDiff < -180) angDiff += 360;
+
+        if (angDiff > userBw / 2) {
+          this.phase = 'FOCUSING';
+          this.focusQueueIndex = 0;
+          this.dwellTimer = 0; // Prepare for first target
+        }
+      }
+
+    } else if (this.phase === 'FOCUSING') {
+      this.effectiveBeamWidth = 3;
+
+      if (this.focusQueueIndex >= this.focusQueue.length) {
+        // All queued targets processed
+        this.phase = 'SCANNING';
+        this.focusQueue = [];
+        this.focusQueueIndex = 0;
+        return this._generateRadarData(state, objects, maxRange);
+      }
+
+      const currentTask = this.focusQueue[this.focusQueueIndex];
+      this.currentAngle = currentTask.angle;
+
+      if (this.dwellTimer <= 0) {
+        // Resolve sub-targets within the 3° beam at the current lock angle
+        const subTargets = objects.filter(obj => 
+          this._isObjectInBeam(obj, currentTask.angle, 3, maxRange, snr)
+        );
+
+        if (currentTask.isBlob && subTargets.length > 1) {
+          // Resolved multiple targets! Insert them into the queue and skip the blob itself
+          const newTasks = subTargets.map(t => ({ angle: t.angle, id: t.id, isBlob: false }));
+          this.focusQueue.splice(this.focusQueueIndex, 1, ...newTasks);
+          // Bug 4: Immediately set targetId to the first resolved sub-target
+          this.targetId = newTasks[0].id ?? null;
+          this.dwellTimer = 1.5; 
+        } else if (subTargets.length > 0) {
+          // Processing a single (or merged) target
+          const target = subTargets[0];
+          this.targetId = target.id;
+          this.dwellTimer = 1.5;
+          // Mark this task as "measured" when timer finishes
+        } else {
+          // No targets found at this angle (maybe moved or false alarm)
+          this.focusQueueIndex++;
+          this.dwellTimer = 0;
+        }
+      } else {
+        this.dwellTimer -= dt;
+        if (this.dwellTimer <= 0) {
+          // Dwell complete
+          const target = objects.find(o => o.id === this.targetId);
+          if (target) {
+            this.measuredSizes[target.id] = target.size;
+            this.confirmedTargets.set(target.id, { ...target, time: Date.now() });
+          }
+          this.focusQueueIndex++;
+          this.targetId = null;
+        }
+      }
+    }
+
+    // Cleanup confirmed targets that are far from their original spots, changed size, or gone
+    const beamThreshold = (state.beamWidth || 15) / 2;
+    for (const [id, c] of this.confirmedTargets) {
+      const obj = objects.find(o => o.id === id);
+      if (!obj || 
+          Math.abs(obj.angle - c.angle) > beamThreshold || 
+          Math.abs(obj.distance - c.distance) > 50 ||
+          obj.size !== c.size) {
+        this.confirmedTargets.delete(id);
+      }
+    }
+
+    return this._generateRadarData(state, objects, maxRange);
+  }
+
+  _getVisibleFraction(distance, size, maxRange) {
+    const r = size / 2;
+    const R = maxRange;
+    const d = distance;
+
+    if (d + r <= R) return 1.0;
+    if (d - r >= R) return 0.0;
+
+    try {
+      // Standard circle-circle intersection area formula
+      const part1 = r * r * Math.acos((d * d + r * r - R * R) / (2 * d * r));
+      const part2 = R * R * Math.acos((d * d + R * R - r * r) / (2 * d * R));
+      const part3 = 0.5 * Math.sqrt(Math.max(0, (-d + r + R) * (d + r - R) * (d - r + R) * (d + r + R)));
+      const area = part1 + part2 - part3;
+      const totalArea = Math.PI * r * r;
+      return Math.max(0, Math.min(1, area / totalArea));
+    } catch (e) {
+      return d < R ? 1.0 : 0.0;
+    }
+  }
+
+  _isObjectInBeam(obj, beamAngle, beamWidth, maxRange, snr) {
+    const beamHalf = beamWidth / 2;
+    const objAngHalf = (obj.size / (obj.distance || 1)) * (180 / Math.PI) / 2;
+    
+    let angDiff = obj.angle - beamAngle;
+    if (angDiff > 180) angDiff -= 360;
+    if (angDiff < -180) angDiff += 360;
+    
+    const inAngularRange = Math.abs(angDiff) <= (beamHalf + objAngHalf);
+    if (!inAngularRange) return false;
+
+    // Bug 2: Partial detection at range boundary
+    const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
+    if (visibleFraction <= 0) return false;
+
+    // Physical Thresholding Logic
+    const snrDb = snr; // 0-40 dB directly from slider
+    const noiseFloorDb = -80; // Fixed receiver noise floor
+    const detectionThreshold = noiseFloorDb + (40 - snrDb);
+
+    // Calculate potential signal strength
+    const rangeRef = obj.distance / 100;
+    const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
+    const size2 = Math.pow(obj.size / 5, 2);
+    // Use visibleFraction to scale size
+    const effectiveSize2 = size2 * visibleFraction;
+    
+    // Check detection at peak gain (1.0)
+    const signalPower = effectiveSize2 / range4;
+    const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
+
+    return strengthDb > detectionThreshold;
+  }
+
+
+  _generateRadarData(state, objects, maxRange) {
+    const echoes = [];
+    const beamHalf = this.effectiveBeamWidth / 2;
+    const snr = state.snr ?? 20;
+
+    for (const obj of objects) {
+      const objAngHalf = (obj.size / (obj.distance || 1)) * (180 / Math.PI) / 2;
+      let angDiff = obj.angle - this.currentAngle;
+      if (angDiff > 180) angDiff -= 360;
+      if (angDiff < -180) angDiff += 360;
+
+      const totalHalf = beamHalf + objAngHalf;
+      
+      // Bug 2: Partial detection at range boundary
+      const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
+
+      if (Math.abs(angDiff) <= totalHalf && visibleFraction > 0) {
+        // Radar Equation: signal power ∝ (size^2 * gain^2 * visibleFraction) / range^4
+        const rangeRef = obj.distance / 100;
+        const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
+        const size2 = Math.pow(obj.size / 5, 2);
+        
+        // Calculate gain based on angular distance from center
+        const normalizedDiff = Math.abs(angDiff) / (totalHalf || 1);
+        const afGain = normalizedDiff < 0.95 ? 1.0 : Math.max(0.2, 1.0 - (normalizedDiff - 0.95) * 10);
+        const gain2 = Math.pow(afGain, 2);
+        
+        const signalPower = (size2 * gain2 * visibleFraction) / range4;
+        const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
+
+        echoes.push({
+          id: obj.id,
+          angle: obj.angle,
+          relAngle: angDiff,
+          distance: obj.distance,
+          size: obj.size,
+          measuredSize: this.measuredSizes[obj.id],
+          strength: strengthDb,
+          afGain: afGain,
+          isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id
+        });
+      }
+    }
+
+    let focusStatus = this.phase;
+    if (this.phase === 'FOCUSING' && this.focusQueue.length > 0) {
+      const current = Math.min(this.focusQueueIndex + 1, this.focusQueue.length);
+      focusStatus = `FOCUSING ${current} of ${this.focusQueue.length}`;
+    }
+
+    return {
+      echoes,
+      phase: this.phase,
+      focusStatus: focusStatus,
+      beamAngle: this.currentAngle,
+      effectiveBeamWidth: this.effectiveBeamWidth,
+      measuredSizes: { ...this.measuredSizes }
+    };
+  }
 }
+

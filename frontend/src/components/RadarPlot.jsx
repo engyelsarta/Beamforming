@@ -6,7 +6,6 @@ const degToRad = (d) => (d * Math.PI) / 180;
 export default function RadarPlot({ state, data, updateParam, beamAngleRef, bwRef }) {
   const canvasRef  = useRef(null);
   const animRef    = useRef(null);
-  const trailRef   = useRef([]);
   // Drag state (all mutable refs so they don't cause re-renders)
   const dragRef    = useRef(null); // { id, startAngle, startDist }
 
@@ -153,57 +152,61 @@ export default function RadarPlot({ state, data, updateParam, beamAngleRef, bwRe
         ctx.stroke();
       }
 
-      // ── Sweep trail ───────────────────────────────────────────────────
-      const now = performance.now();
-      const TRAIL_MS = 1800;
-      trailRef.current = trailRef.current.filter(e => now - e.time < TRAIL_MS);
-
       // Read live values from refs (updated every tick without React re-render)
       const liveAngle = beamAngleRef?.current ?? 0;
       const liveBw    = bwRef?.current ?? state.beamWidth ?? 20;
 
-      trailRef.current.push({ angle: liveAngle, time: now });
-
-      for (const entry of trailRef.current) {
-        const age   = now - entry.time;
-        const alpha = (1 - age / TRAIL_MS) * 0.18;
-        const bh    = degToRad(liveBw / 2);
-        const a0    = degToRad(entry.angle) - bh;
-        const a1    = degToRad(entry.angle) + bh;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, maxR, a0, a1);
-        ctx.closePath();
-        ctx.fillStyle = `rgba(0,255,136,${alpha})`;
-        ctx.fill();
-      }
-
-      // ── Live beam cone ─────────────────────────────────────────────────
+      // ── Live beam wedge ─────────────────────────────────────────────────
       {
         const beamRad  = degToRad(liveAngle);
         const halfBeam = degToRad(Math.max(1, liveBw) / 2);
 
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-        grad.addColorStop(0,   'rgba(0,255,136,0.55)');
-        grad.addColorStop(0.6, 'rgba(0,255,136,0.18)');
+        grad.addColorStop(0,   'rgba(0,255,136,0.6)');
+        grad.addColorStop(0.7, 'rgba(0,255,136,0.25)');
         grad.addColorStop(1,   'rgba(0,255,136,0.0)');
 
+        // Draw the wedge (pie slice)
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.arc(cx, cy, maxR, beamRad - halfBeam, beamRad + halfBeam);
+        ctx.lineTo(cx, cy);
         ctx.closePath();
         ctx.fillStyle = grad;
         ctx.fill();
 
+        // Draw wedge outlines (leading and trailing edges)
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(beamRad) * maxR, cy + Math.sin(beamRad) * maxR);
-        ctx.strokeStyle = 'rgba(0,255,136,0.9)';
+        ctx.lineTo(cx + Math.cos(beamRad - halfBeam) * maxR, cy + Math.sin(beamRad - halfBeam) * maxR);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(beamRad + halfBeam) * maxR, cy + Math.sin(beamRad + halfBeam) * maxR);
+        
+        // Arc outline
+        ctx.arc(cx, cy, maxR, beamRad - halfBeam, beamRad + halfBeam);
+        
+        ctx.strokeStyle = data?.phase === 'FOCUSING' ? '#ff6b35' : 'rgba(0,255,136,0.5)';
+        ctx.lineWidth   = data?.phase === 'FOCUSING' ? 2 : 1;
+        ctx.stroke();
+
+        // Highlight the "leading" edge (for clockwise scan, it's beamRad + halfBeam)
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(beamRad + halfBeam) * maxR, cy + Math.sin(beamRad + halfBeam) * maxR);
+        ctx.strokeStyle = data?.phase === 'FOCUSING' ? '#ff6b35' : 'rgba(0,255,136,0.8)';
         ctx.lineWidth   = 2;
-        ctx.shadowColor = '#00ff88';
-        ctx.shadowBlur  = 12;
+        ctx.shadowColor = data?.phase === 'FOCUSING' ? '#ff6b35' : '#00ff88';
+        ctx.shadowBlur  = 10;
         ctx.stroke();
         ctx.shadowBlur  = 0;
+
+        if (data?.phase === 'FOCUSING') {
+          ctx.fillStyle = '#ff6b35';
+          ctx.font = 'bold 12px Orbitron, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('LOCKED', cx + Math.cos(beamRad) * (maxR + 25), cy + Math.sin(beamRad) * (maxR + 25));
+          ctx.textAlign = 'left';
+        }
       }
 
       // ── Objects ───────────────────────────────────────────────────────

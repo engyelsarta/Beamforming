@@ -25,54 +25,8 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
   return (
     <div className="sidebar" style={{ width: 280, minWidth: 280 }}>
 
-      {/* ── Array Parameters ───────────────────────────────────────────── */}
-      <div className="section-label">Phased Array</div>
-
-      <div className="param">
-        <div className="param-header">
-          <span className="param-name">Elements</span>
-          <span className="param-value">{state.elements}</span>
-        </div>
-        <input type="range" min="2" max="64" step="1"
-          value={state.elements}
-          onChange={e => updateParam('elements', parseInt(e.target.value))} />
-      </div>
-
-      <div className="param">
-        <div className="param-header">
-          <span className="param-name">Spacing (d/λ)</span>
-          <span className="param-value">{(state.spacing || 0.5).toFixed(2)}</span>
-        </div>
-        <input type="range" min="0.1" max="2.0" step="0.05"
-          value={state.spacing}
-          onChange={e => updateParam('spacing', parseFloat(e.target.value))} />
-      </div>
-
-      <div className="param">
-        <div className="param-header">
-          <span className="param-name">Frequency</span>
-          <span className="param-value">{(state.freq || 2.4).toFixed(1)}<span className="param-unit">GHz</span></span>
-        </div>
-        <input type="range" min="0.5" max="30" step="0.5"
-          value={state.freq}
-          onChange={e => updateParam('freq', parseFloat(e.target.value))} />
-      </div>
-
-      <div className="param">
-        <div className="param-header">
-          <span className="param-name">Window</span>
-        </div>
-        <select value={state.window || 'hamming'} onChange={e => updateParam('window', e.target.value)}>
-          <option value="rectangular">Rectangular</option>
-          <option value="hamming">Hamming</option>
-          <option value="hanning">Hanning</option>
-          <option value="blackman">Blackman</option>
-          <option value="kaiser">Kaiser</option>
-        </select>
-      </div>
-
       {/* ── Scanning ──────────────────────────────────────────────────── */}
-      <div className="section-label" style={{ marginTop: 4 }}>Scanning</div>
+      <div className="section-label" style={{ marginTop: 0 }}>Scanning</div>
 
       <div className="param">
         <div className="param-header">
@@ -103,11 +57,11 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
 
       <div className="param">
         <div className="param-header">
-          <span className="param-name">SNR</span>
-          <span className="param-value">{state.snr || 300}</span>
+          <span className="param-name">SNR (dB)</span>
+          <span className="param-value">{state.snr || 20}</span>
         </div>
-        <input type="range" min="0" max="1000" step="10"
-          value={state.snr || 300}
+        <input type="range" min="0" max="40" step="1"
+          value={state.snr || 20}
           onChange={e => updateParam('snr', parseInt(e.target.value))} />
       </div>
 
