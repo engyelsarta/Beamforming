@@ -31,17 +31,14 @@ export function waveformFactor(wf) {
 export class SignalSource {
   constructor(id, x, y, freq, phaseOffset = 0, amplitude = 1.0) {
     this.id = id;
-    // x stored in wavelength-fraction units at the 2.4 GHz reference (= n * d/λ_ref)
     this.x = x;
     this.y = y;
-    this.freq = freq;          // GHz
-    this.phaseOffset = phaseOffset; // radians — per-element extra phase (not used in global path)
+    this.freq = freq;
+    this.phaseOffset = phaseOffset;
     this.amplitude = amplitude;
-    // steering-only complex weight (pure phase, no apodization baked in)
-    this.steer_re = 1.0;
-    this.steer_im = 0.0;
-    // apodization scalar (set by apply_apodization)
     this.weight = 1.0;
+    this.re_weight = 1.0;
+    this.im_weight = 0.0;
   }
 }
 
@@ -52,7 +49,7 @@ export class PhasedArray {
 
   build_linear_array(N, spacing) {
     this.sources = [];
-    // x = n * spacing  (wavelength fractions at the 2.4 GHz reference)
+    // Using simple generic normalized spacing coordinates where distance D=spacing
     for (let i = 0; i < N; i++) {
       this.sources.push(new SignalSource(i, i * spacing, 0, 2.4, 0, 1.0));
     }
@@ -67,27 +64,21 @@ export class PhasedArray {
     }
   }
 
-  // FIX BUG 3: correct steering weight — pure phase, no k_val confusion
-  // For element at position x (in wavelength fractions at ref freq), the steering
-  // progressive phase is:  ψ_n = -2π * freqFactor * x_n * sin(θ_steer)
   set_steering_angles(angles_deg, base_freq) {
     const K = Math.max(1, angles_deg.length);
     const ampScale = 1.0 / Math.sqrt(K);
-    // FIX: freqFactor scales the spatial phase correctly with frequency
-    const freqFactor = base_freq / 2.4;
+    const k_val = 2 * Math.PI * (base_freq / 2.4);
 
     for (const src of this.sources) {
       let re = 0, im = 0;
       for (const theta_deg of angles_deg) {
         const thetaSteer = theta_deg * Math.PI / 180;
-        // FIX: psi uses src.x (wavelength fractions) × freqFactor, NOT a separate k_val
-        const psi = -2 * Math.PI * freqFactor * src.x * Math.sin(thetaSteer);
+        const psi = -k_val * (src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer));
         re += Math.cos(psi);
         im += Math.sin(psi);
       }
-      // Store pure steering phase — apodization weight applied separately in engine
-      src.steer_re = re * ampScale;
-      src.steer_im = im * ampScale;
+      src.re_weight = re * ampScale;
+      src.im_weight = im * ampScale;
     }
   }
 
@@ -95,30 +86,39 @@ export class PhasedArray {
     if (this.sources.length !== globalParams.elements) {
       this.build_linear_array(globalParams.elements, globalParams.spacing);
     } else {
+      // Re-adjust spacing if needed
       for (let i = 0; i < this.sources.length; i++) {
         this.sources[i].x = i * globalParams.spacing;
       }
     }
 
-    const angles = Array.isArray(globalParams.steering)
-      ? globalParams.steering
-      : [globalParams.steering || 0];
-
-    // FIX BUG 4: set steering FIRST (overwrites steer_re/im cleanly), then window
+    const angles = Array.isArray(globalParams.steering) ? globalParams.steering : [globalParams.steering || 0];
     this.set_steering_angles(angles, globalParams.freq);
     this.apply_apodization(globalParams.window);
-    // NOTE: global phase offset (phi0) is NOT baked into the weights here anymore.
-    //       It is added cleanly inside calculate_interference_pattern (fixes Bug 5).
+
+    const phi0 = (globalParams.phase || 0) * Math.PI / 180;
+    const cosPhi0 = Math.cos(phi0);
+    const sinPhi0 = Math.sin(phi0);
 
     for (let i = 0; i < this.sources.length; i++) {
       const src = this.sources[i];
       src.freq = globalParams.freq;
       src.amplitude = globalParams.amplitude;
 
+      // Apply global phase offset to the complex weight
+      const r = src.re_weight, im = src.im_weight;
+      src.re_weight = r * cosPhi0 - im * sinPhi0;
+      src.im_weight = r * sinPhi0 + im * cosPhi0;
+
+      // Apply source apodization (windowing) to the magnitude
+      src.re_weight *= src.weight;
+      src.im_weight *= src.weight;
+
+      // Apply per-antenna configurations cleanly decoupling from global params
       if (perSourceParams && perSourceParams[i]) {
         const p = perSourceParams[i];
         if (p.amplitude !== undefined) src.amplitude = p.amplitude;
-        if (p.phase !== undefined) src.phaseOffset = p.phase * Math.PI / 180;
+        if (p.phase !== undefined) src.phaseOffset += p.phase * Math.PI / 180;
         if (p.x !== undefined) src.x = p.x;
         if (p.y !== undefined) src.y = p.y;
       }
@@ -134,18 +134,11 @@ export class BeamformerEngine {
 
   calculate_interference_pattern(params) {
     this.globalParams = params;
-    const { power, snr, waveform, phase: phaseOffsetDeg = 0, freq: globalFreq = 2.4 } = params;
+    const { power, snr, waveform } = params;
 
-    // FIX BUG 2: SNR slider is in dB → convert to linear for noise standard deviation
-    const snrLin = Math.pow(10, Math.max(snr, 0) / 10);
+    const snrLin = snr + 1e-4; // Now processing in linear scale 0 - 1000
     const noiseStd = params.amplitude / Math.sqrt(2 * snrLin);
-    // Noise floor in dBm: straightforward dB subtraction
-    const noiseFloor = power - snr;
-
     const wfFactor = waveformFactor(waveform);
-
-    // FIX BUG 5: global phase offset applied per-element additively here, not in weights
-    const phi0 = phaseOffsetDeg * Math.PI / 180;
 
     const sources = this.array.sources;
     const N = sources.length;
@@ -158,33 +151,21 @@ export class BeamformerEngine {
 
     for (let i = 0; i < M; i++) {
       theta[i] = -Math.PI / 2 + (Math.PI / (M - 1)) * i;
-      const sinTheta = Math.sin(theta[i]);
+      const MathSinTheta = Math.sin(theta[i]);
+      const MathCosTheta = Math.cos(theta[i]);
 
       for (let n = 0; n < N; n++) {
         const src = sources[n];
+        const k = 2 * Math.PI * (src.freq / 2.4);
+        const psi = k * (src.x * MathSinTheta + src.y * MathCosTheta);
+        const cosPsi = Math.cos(psi);
+        const sinPsi = Math.sin(psi);
 
-        // FIX BUG 1: correct phase term
-        // src.x is in wavelength fractions at 2.4 GHz reference.
-        // freqFactor scales d/λ correctly: higher freq → shorter λ → larger phase per element.
-        const freqFactor = src.freq / 2.4;
-        const spatialPhase = 2 * Math.PI * freqFactor * src.x * sinTheta;
-
-        // Total phase = spatial propagation + steering pre-phase + global offset + per-element offset
-        // Steering is baked into (steer_re, steer_im) as a complex phasor.
-        // We multiply the propagation phasor by the steering phasor:
-        //   e^{j * spatialPhase} * (steer_re + j*steer_im)
-        const cosSp = Math.cos(spatialPhase + phi0 + src.phaseOffset);
-        const sinSp = Math.sin(spatialPhase + phi0 + src.phaseOffset);
-
-        // Apply apodization scalar (weight) here — NOT pre-baked into steer weights
-        const w = src.weight;
-        const a = src.amplitude;
-
-        // (steer_re + j*steer_im) * (cosSp + j*sinSp)
-        AF_re[i] += a * w * (src.steer_re * cosSp - src.steer_im * sinSp)
-          + (Math.random() * 2 - 1) * noiseStd * 0.3;
-        AF_im[i] += a * w * (src.steer_re * sinSp + src.steer_im * cosSp)
-          + (Math.random() * 2 - 1) * noiseStd * 0.3;
+        // Complex multiplication: (A * src.weight) * (cosPsi + j sinPsi)
+        // W = re_weight + j im_weight
+        // Res = (re_w * cosPsi - im_w * sinPsi) + j (re_w * sinPsi + im_w * cosPsi)
+        AF_re[i] += src.amplitude * (src.re_weight * cosPsi - src.im_weight * sinPsi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
+        AF_im[i] += src.amplitude * (src.re_weight * sinPsi + src.im_weight * cosPsi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
       }
     }
 
@@ -202,90 +183,51 @@ export class BeamformerEngine {
       AF_db[i] = Math.max(-60, 20 * Math.log10(AF_norm[i] + 1e-12));
     }
 
-    // HPBW
     const halfPow = 1 / Math.SQRT2;
     let first = -1, last = -1;
     for (let i = 0; i < M; i++) { if (AF_norm[i] >= halfPow) { if (first < 0) first = i; last = i; } }
-    const hpbw = (first >= 0 && last >= 0)
-      ? Math.abs((theta[last] - theta[first]) * 180 / Math.PI)
-      : 0;
+    const hpbw = (first >= 0 && last >= 0) ? Math.abs((theta[last] - theta[first]) * 180 / Math.PI) : 0;
 
-    // SLL
     let mainIdx = 0;
     for (let i = 1; i < M; i++) if (AF_norm[i] > AF_norm[mainIdx]) mainIdx = i;
     let sllMax = 0;
     for (let i = 0; i < M; i++) if (Math.abs(i - mainIdx) > 30 && AF_norm[i] > sllMax) sllMax = AF_norm[i];
     const sll_db = 20 * Math.log10(sllMax + 1e-12);
 
-    // EIRP and directivity
+    const noiseFloor = power - (10 * Math.log10(snrLin));
     let sumAmp = 0;
     for (const src of sources) sumAmp += src.amplitude;
     const avgAmp = sumAmp / N;
+
     const eirp = power + 10 * Math.log10(N) + 20 * Math.log10(avgAmp + 1e-12);
     const directivity = 10 * Math.log10(N) + 20 * Math.log10(avgAmp + 1e-12);
 
-    // 2D interference field (True near-field propagating waves)
+    // 2D FIELD map for visualizer
     const GS = 120;
     const field = [];
-    
-    // Find array dimensions to center visualization
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-    for (let i = 0; i < N; i++) {
-      if (sources[i].x < minX) minX = sources[i].x;
-      if (sources[i].x > maxX) maxX = sources[i].x;
-      if ((sources[i].y || 0) < minY) minY = sources[i].y || 0;
-      if ((sources[i].y || 0) > maxY) maxY = sources[i].y || 0;
-    }
-    const arrayWidth = maxX - minX;
-    const arrayCenter = (maxX + minX) / 2;
-    
-    // Create a view window that scales with the array size
-    const viewWidth = Math.max(15, arrayWidth * 3.0); 
-    const viewHeight = viewWidth * 0.75; 
-
-    // Precompute source data for performance in pixel loop
-    const sourceData = sources.map(src => {
-      let steerPhase = 0;
-      if (src.steer_re !== 0 || src.steer_im !== 0) {
-        steerPhase = Math.atan2(src.steer_im, src.steer_re);
-      }
-      return {
-        x: src.x,
-        y: src.y || 0,
-        freqFactor: src.freq / 2.4,
-        phaseOffset: steerPhase + phi0 + src.phaseOffset,
-        amp: src.amplitude * src.weight
-      };
-    });
-
     for (let row = 0; row < GS; row++) {
       const rowArr = new Float32Array(GS);
-      const Y = viewHeight - (row / (GS - 1)) * viewHeight;
+      const Y = 1.5 - (row / (GS - 1)) * 1.5;
       for (let col = 0; col < GS; col++) {
-        const X = arrayCenter - viewWidth / 2 + (col / (GS - 1)) * viewWidth;
-        
-        let wave = 0;
+        const X = -1 + (col / (GS - 1)) * 2;
+        const R = Math.sqrt(X * X + Y * Y) + 1e-9;
+
+        let re = 0, im = 0;
+        const tg = Math.atan2(X, Y); // Angle from Y axis
+        const MathSinTg = Math.sin(tg);
+        const MathCosTg = Math.cos(tg);
         for (let n = 0; n < N; n++) {
-          const sd = sourceData[n];
-          
-          const dx = X - sd.x;
-          const dy = Y - sd.y;
-          const dist = Math.sqrt(dx*dx + dy*dy);
-          
-          // Phase delay from propagation distance
-          const propPhase = -2 * Math.PI * sd.freqFactor * dist;
-          const totalPhase = propPhase + sd.phaseOffset;
-          
-          // Spatial attenuation to make the field look realistic (limit at source)
-          const atten = 1.0 / (Math.sqrt(Math.max(dist, 0.5)));
-          
-          // Instantaneous wave amplitude
-          wave += sd.amp * atten * Math.cos(totalPhase);
+          const src = sources[n];
+          const k = 2 * Math.PI * (src.freq / 2.4);
+          const psi = k * (src.x * MathSinTg + src.y * MathCosTg);
+          const cosPsi = Math.cos(psi);
+          const sinPsi = Math.sin(psi);
+
+          re += src.amplitude * (src.re_weight * cosPsi - src.im_weight * sinPsi);
+          im += src.amplitude * (src.re_weight * sinPsi + src.im_weight * cosPsi);
         }
-        
-        // Take absolute value to create bright ripples
-        rowArr[col] = Math.abs(wave) ** wfFactor;
+        let v = Math.sqrt(re * re + im * im) ** wfFactor / (Math.pow(R, 0.8) + 0.1);
+        rowArr[col] = v;
       }
       field.push(rowArr);
     }
