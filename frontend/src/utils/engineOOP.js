@@ -578,12 +578,28 @@ export class Radar_Simulator extends ApplicationMode {
 
     // Cleanup confirmed targets that are far from their original spots, changed size, or gone
     const beamThreshold = (state.beamWidth || 15) / 2;
+    const noiseFloorDb = -80;
+    const detectionThreshold = noiseFloorDb + (40 - snr);
+
     for (const [id, c] of this.confirmedTargets) {
       const obj = objects.find(o => o.id === id);
-      if (!obj || 
-          Math.abs(obj.angle - c.angle) > beamThreshold || 
+      if (!obj) {
+        this.confirmedTargets.delete(id);
+        continue;
+      }
+
+      // Check signal strength at peak gain for persistent tracking
+      const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
+      const rangeRef = obj.distance / 100;
+      const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
+      const size2 = Math.pow(obj.size / 5, 2);
+      const peakSignalPower = (size2 * visibleFraction) / range4;
+      const peakStrengthDb = 10 * Math.log10(Math.max(1e-12, peakSignalPower));
+
+      if (Math.abs(obj.angle - c.angle) > beamThreshold || 
           Math.abs(obj.distance - c.distance) > 50 ||
-          obj.size !== c.size) {
+          obj.size !== c.size ||
+          peakStrengthDb <= detectionThreshold) {
         this.confirmedTargets.delete(id);
       }
     }
@@ -677,17 +693,23 @@ export class Radar_Simulator extends ApplicationMode {
         const signalPower = (size2 * gain2 * visibleFraction) / range4;
         const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
 
-        echoes.push({
-          id: obj.id,
-          angle: obj.angle,
-          relAngle: angDiff,
-          distance: obj.distance,
-          size: obj.size,
-          measuredSize: this.measuredSizes[obj.id],
-          strength: strengthDb,
-          afGain: afGain,
-          isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id
-        });
+        // Apply physical detection threshold
+        const noiseFloorDb = -80;
+        const detectionThreshold = noiseFloorDb + (40 - snr);
+
+        if (strengthDb > detectionThreshold) {
+          echoes.push({
+            id: obj.id,
+            angle: obj.angle,
+            relAngle: angDiff,
+            distance: obj.distance,
+            size: obj.size,
+            measuredSize: this.measuredSizes[obj.id],
+            strength: strengthDb,
+            afGain: afGain,
+            isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id
+          });
+        }
       }
     }
 

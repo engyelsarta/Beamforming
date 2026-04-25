@@ -89,10 +89,34 @@ export default class RadarTab extends Component {
       };
     }
 
-    // Prune log for removed objects
+    // Prune log for removed objects or stale detections
     const liveIds = new Set((state.objects || []).map(o => o.id));
     for (const key of Object.keys(this.detectionLog)) {
-      if (!liveIds.has(Number(key))) delete this.detectionLog[key];
+      const entry = this.detectionLog[key];
+      const id = Number(key);
+      
+      // A. Object deleted from scenario
+      if (!liveIds.has(id)) {
+        delete this.detectionLog[key];
+        continue;
+      }
+
+      // B. Sweep-based pruning: If the beam is CURRENTLY over the target's last known position
+      // but it's not in the current echoes, it means it's now below the detection threshold.
+      let angDiff = Math.abs(entry.angle - simData.beamAngle);
+      if (angDiff > 180) angDiff = 360 - angDiff;
+      const inBeam = angDiff < (simData.effectiveBeamWidth / 2);
+      const inEchoes = (simData.echoes || []).some(e => e.id === id);
+
+      if (inBeam && !inEchoes) {
+        delete this.detectionLog[key];
+        continue;
+      }
+
+      // C. General timeout (e.g. 10s) to catch other cases (object moved away, etc.)
+      if ((timestamp - entry.lastSeen) > 10000) {
+        delete this.detectionLog[key];
+      }
     }
 
     // 5. Update React state at ~10fps only
