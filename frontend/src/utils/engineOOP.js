@@ -37,6 +37,8 @@ export class SignalSource {
     this.phaseOffset = phaseOffset;
     this.amplitude = amplitude;
     this.weight = 1.0;
+    this.re_weight = 1.0;
+    this.im_weight = 0.0;
   }
 }
 
@@ -62,11 +64,21 @@ export class PhasedArray {
     }
   }
 
-  set_steering_angle(theta_deg, base_freq) {
-    const thetaSteer = theta_deg * Math.PI / 180;
-    const k = 2 * Math.PI * (base_freq / 2.4);
+  set_steering_angles(angles_deg, base_freq) {
+    const K = Math.max(1, angles_deg.length);
+    const ampScale = 1.0 / Math.sqrt(K);
+    const k_val = 2 * Math.PI * (base_freq / 2.4);
+
     for (const src of this.sources) {
-      src.phaseOffset = -k * (src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer));
+      let re = 0, im = 0;
+      for (const theta_deg of angles_deg) {
+        const thetaSteer = theta_deg * Math.PI / 180;
+        const psi = -k_val * (src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer));
+        re += Math.cos(psi);
+        im += Math.sin(psi);
+      }
+      src.re_weight = re * ampScale;
+      src.im_weight = im * ampScale;
     }
   }
 
@@ -80,16 +92,27 @@ export class PhasedArray {
       }
     }
 
-    this.set_steering_angle(globalParams.steering, globalParams.freq);
+    const angles = Array.isArray(globalParams.steering) ? globalParams.steering : [globalParams.steering || 0];
+    this.set_steering_angles(angles, globalParams.freq);
     this.apply_apodization(globalParams.window);
 
     const phi0 = (globalParams.phase || 0) * Math.PI / 180;
+    const cosPhi0 = Math.cos(phi0);
+    const sinPhi0 = Math.sin(phi0);
 
     for (let i = 0; i < this.sources.length; i++) {
       const src = this.sources[i];
       src.freq = globalParams.freq;
       src.amplitude = globalParams.amplitude;
-      src.phaseOffset += phi0;
+      
+      // Apply global phase offset to the complex weight
+      const r = src.re_weight, im = src.im_weight;
+      src.re_weight = r * cosPhi0 - im * sinPhi0;
+      src.im_weight = r * sinPhi0 + im * cosPhi0;
+
+      // Apply source apodization (windowing) to the magnitude
+      src.re_weight *= src.weight;
+      src.im_weight *= src.weight;
 
       // Apply per-antenna configurations cleanly decoupling from global params
       if (perSourceParams && perSourceParams[i]) {
@@ -134,10 +157,15 @@ export class BeamformerEngine {
       for (let n = 0; n < N; n++) {
         const src = sources[n];
         const k = 2 * Math.PI * (src.freq / 2.4);
-        const psi = k * (src.x * MathSinTheta + src.y * MathCosTheta) + src.phaseOffset;
+        const psi = k * (src.x * MathSinTheta + src.y * MathCosTheta);
+        const cosPsi = Math.cos(psi);
+        const sinPsi = Math.sin(psi);
 
-        AF_re[i] += src.amplitude * src.weight * Math.cos(psi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
-        AF_im[i] += src.amplitude * src.weight * Math.sin(psi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
+        // Complex multiplication: (A * src.weight) * (cosPsi + j sinPsi)
+        // W = re_weight + j im_weight
+        // Res = (re_w * cosPsi - im_w * sinPsi) + j (re_w * sinPsi + im_w * cosPsi)
+        AF_re[i] += src.amplitude * (src.re_weight * cosPsi - src.im_weight * sinPsi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
+        AF_im[i] += src.amplitude * (src.re_weight * sinPsi + src.im_weight * cosPsi) + (Math.random() * 2 - 1) * noiseStd * 0.3;
       }
     }
 
@@ -191,10 +219,12 @@ export class BeamformerEngine {
         for (let n = 0; n < N; n++) {
           const src = sources[n];
           const k = 2 * Math.PI * (src.freq / 2.4);
-          const psi = k * (src.x * MathSinTg + src.y * MathCosTg) + src.phaseOffset;
+          const psi = k * (src.x * MathSinTg + src.y * MathCosTg);
+          const cosPsi = Math.cos(psi);
+          const sinPsi = Math.sin(psi);
 
-          re += src.amplitude * src.weight * Math.cos(psi);
-          im += src.amplitude * src.weight * Math.sin(psi);
+          re += src.amplitude * (src.re_weight * cosPsi - src.im_weight * sinPsi);
+          im += src.amplitude * (src.re_weight * sinPsi + src.im_weight * cosPsi);
         }
         let v = Math.sqrt(re * re + im * im) ** wfFactor / (Math.pow(R, 0.8) + 0.1);
         rowArr[col] = v;
@@ -387,55 +417,41 @@ export class FiveG_Simulator extends ApplicationMode {
         return dist < influenceRadius;
       });
 
-      let steeringAngle = 0;
+      // ── Step 4: Coverage Gate (Network Access) — MU-MIMO Support ─────────
+      let steeringAngles = [0];
+      let powerFactor = 1.0;
       let amp = state.amplitude || 1.0;
-      let connectedUsers = [];
 
-      if (usersInRange.length === 0) {
-        // No users in range — idle beam, reduced amplitude
-        amp = 0.3 * (state.amplitude || 1.0);
+      if (usersInRange.length > 0) {
+        steeringAngles = usersInRange.map(u => {
+          // Angle from Y-axis (normal to the array along X-axis)
+          // atan2(dx, dy) gives angle from Y-axis in canvas coords
+          const angleRad = Math.atan2(u.x - tower.x, u.y - tower.y);
+          return angleRad * 180 / Math.PI;
+        });
+        powerFactor = 1.0 / usersInRange.length;
       } else {
-        // ── Step 2: Find primary user (closest) — beam steers toward them ───
-        const primary = usersInRange.reduce((a, b) => {
-          const da = Math.sqrt((a.x - tower.x) ** 2 + (a.y - tower.y) ** 2);
-          const db = Math.sqrt((b.x - tower.x) ** 2 + (b.y - tower.y) ** 2);
-          return da < db ? a : b;
-        });
-
-        const beamAngleRad = Math.atan2(primary.y - tower.y, primary.x - tower.x);
-        steeringAngle = beamAngleRad * 180 / Math.PI;
-
-        const primaryDist = Math.sqrt((primary.x - tower.x) ** 2 + (primary.y - tower.y) ** 2);
-        amp = Math.max(0.3, 1 - primaryDist / influenceRadius) * (state.amplitude || 1.0);
-
-        // ── Step 3: Analytical HPBW half-angle ──────────────────────────────
-        // HPBW = 2·arcsin(0.886 / (N·d/λ)) → half-angle = HPBW/2
-        // Matches the visual cone exactly. Small N → wide → multi-user served.
-        // Large N → narrow → only aligned user connected.
-        const sinHalf = Math.min(1, 0.886 / (Math.max(1, numElements) * Math.max(0.01, spacing)));
-        const beamHalfAngleRad = Math.asin(sinHalf);
-
-        // ── Step 4: Angular gate — only users within the beam cone ─────────
-        connectedUsers = usersInRange.filter(u => {
-          const userAngle = Math.atan2(u.y - tower.y, u.x - tower.x);
-          // Shortest angular difference, wrapping at ±π
-          let angDiff = Math.abs(userAngle - beamAngleRad);
-          if (angDiff > Math.PI) angDiff = 2 * Math.PI - angDiff;
-          return angDiff <= beamHalfAngleRad;
-        });
+        amp *= 0.3; // idle power
       }
 
       const towerState = {
         ...state,
         freq: tp.freq,
         spacing: spacing,
-        steering: steeringAngle,
+        steering: steeringAngles,
         amplitude: amp,
         elements: numElements
       };
 
       tower.array.update_parameters(towerState, perSourceParams);
       const pattern = tower.engine.calculate_interference_pattern(towerState);
+
+      // connectedUsers list for visualization
+      const connectedUsers = usersInRange.map(u => ({
+        ...u,
+        beamGain: 1.0, // Each user gets their own focused beam in MU-MIMO
+        powerFactor: powerFactor
+      }));
 
       return {
         id: tower.id,
@@ -458,12 +474,12 @@ export class FiveG_Simulator extends ApplicationMode {
 export class Radar_Simulator extends ApplicationMode {
   constructor() {
     super();
-    this.phase = 'SCANNING'; 
+    this.phase = 'SCANNING';
     this.currentAngle = 0;
     this.targetId = null;
     this.dwellTimer = 0;
-    this.measuredSizes = {}; 
-    this.recentlyMeasured = new Set(); 
+    this.measuredSizes = {};
+    this.recentlyMeasured = new Set();
     this.lastDetectionTime = 0;
     this.effectiveBeamWidth = 15;
     this.physicsHpbw = 15;
@@ -489,7 +505,7 @@ export class Radar_Simulator extends ApplicationMode {
       this.currentAngle = (this.currentAngle + actualSpeed * dt) % 360;
 
       // 1. Find all objects in broad beam
-      const detectedInBeam = objects.filter(obj => 
+      const detectedInBeam = objects.filter(obj =>
         this._isObjectInBeam(obj, this.currentAngle, this.effectiveBeamWidth, maxRange, snr)
       );
 
@@ -497,10 +513,10 @@ export class Radar_Simulator extends ApplicationMode {
         // Grouping logic: Two bodies sep < beamWidth merge into one
         // For simplicity, we'll find the average angle of all detected in the current beam
         const avgAngle = detectedInBeam.reduce((sum, o) => sum + o.angle, 0) / detectedInBeam.length;
-        
+
         // Check if this "detection" is already in queue or confirmed
         const isQueued = this.focusQueue.some(q => Math.abs(q.angle - avgAngle) < this.effectiveBeamWidth / 2);
-        const isConfirmed = Array.from(this.confirmedTargets.values()).some(c => 
+        const isConfirmed = Array.from(this.confirmedTargets.values()).some(c =>
           Math.abs(c.angle - avgAngle) < this.effectiveBeamWidth / 2
         );
 
@@ -539,7 +555,7 @@ export class Radar_Simulator extends ApplicationMode {
 
       if (this.dwellTimer <= 0) {
         // Resolve sub-targets within the 3° beam at the current lock angle
-        const subTargets = objects.filter(obj => 
+        const subTargets = objects.filter(obj =>
           this._isObjectInBeam(obj, currentTask.angle, 3, maxRange, snr)
         );
 
@@ -549,7 +565,7 @@ export class Radar_Simulator extends ApplicationMode {
           this.focusQueue.splice(this.focusQueueIndex, 1, ...newTasks);
           // Bug 4: Immediately set targetId to the first resolved sub-target
           this.targetId = newTasks[0].id ?? null;
-          this.dwellTimer = 1.5; 
+          this.dwellTimer = 1.5;
         } else if (subTargets.length > 0) {
           // Processing a single (or merged) target
           const target = subTargets[0];
@@ -596,10 +612,10 @@ export class Radar_Simulator extends ApplicationMode {
       const peakSignalPower = (size2 * visibleFraction) / range4;
       const peakStrengthDb = 10 * Math.log10(Math.max(1e-12, peakSignalPower));
 
-      if (Math.abs(obj.angle - c.angle) > beamThreshold || 
-          Math.abs(obj.distance - c.distance) > 50 ||
-          obj.size !== c.size ||
-          peakStrengthDb <= detectionThreshold) {
+      if (Math.abs(obj.angle - c.angle) > beamThreshold ||
+        Math.abs(obj.distance - c.distance) > 50 ||
+        obj.size !== c.size ||
+        peakStrengthDb <= detectionThreshold) {
         this.confirmedTargets.delete(id);
       }
     }
@@ -631,11 +647,11 @@ export class Radar_Simulator extends ApplicationMode {
   _isObjectInBeam(obj, beamAngle, beamWidth, maxRange, snr) {
     const beamHalf = beamWidth / 2;
     const objAngHalf = (obj.size / (obj.distance || 1)) * (180 / Math.PI) / 2;
-    
+
     let angDiff = obj.angle - beamAngle;
     if (angDiff > 180) angDiff -= 360;
     if (angDiff < -180) angDiff += 360;
-    
+
     const inAngularRange = Math.abs(angDiff) <= (beamHalf + objAngHalf);
     if (!inAngularRange) return false;
 
@@ -654,7 +670,7 @@ export class Radar_Simulator extends ApplicationMode {
     const size2 = Math.pow(obj.size / 5, 2);
     // Use visibleFraction to scale size
     const effectiveSize2 = size2 * visibleFraction;
-    
+
     // Check detection at peak gain (1.0)
     const signalPower = effectiveSize2 / range4;
     const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
@@ -675,7 +691,7 @@ export class Radar_Simulator extends ApplicationMode {
       if (angDiff < -180) angDiff += 360;
 
       const totalHalf = beamHalf + objAngHalf;
-      
+
       // Bug 2: Partial detection at range boundary
       const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
 
@@ -684,12 +700,12 @@ export class Radar_Simulator extends ApplicationMode {
         const rangeRef = obj.distance / 100;
         const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
         const size2 = Math.pow(obj.size / 5, 2);
-        
+
         // Calculate gain based on angular distance from center
         const normalizedDiff = Math.abs(angDiff) / (totalHalf || 1);
         const afGain = normalizedDiff < 0.95 ? 1.0 : Math.max(0.2, 1.0 - (normalizedDiff - 0.95) * 10);
         const gain2 = Math.pow(afGain, 2);
-        
+
         const signalPower = (size2 * gain2 * visibleFraction) / range4;
         const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
 

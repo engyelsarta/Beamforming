@@ -178,33 +178,31 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
         const beamHalfAngle = Math.max(0.01, (hpbwDeg / 2) * Math.PI / 180);
 
         boundUsers.forEach(user => {
-          const isConnected = connectedUsers.find(u => u.id === user.id);
+          const connectedData = connectedUsers.find(u => u.id === user.id);
           const dist = Math.sqrt((user.x - tower.x) ** 2 + (user.y - tower.y) ** 2);
 
           // Extend connection zone to irOuter — users up to 1.3×ir still show a fading tail
-          if (isConnected && dist < irOuter) {
+          if (connectedData && dist < irOuter) {
             // softEdge: 1.0 inside ir, fades smoothly to 0 between ir and irOuter
             const softEdge = dist <= ir ? 1.0 : 1.0 - (dist - ir) / (irOuter - ir);
             // ── Signal Strength Model ────────────────────────────────────────
-            // S ∝ sqrt(N / N_max) × (1 - d/R)² × softEdge
-            //   • arrayGain  : sqrt(N/128)              → more elements = stronger
-            //   • pathLoss   : (1-d/irOuter)^2          → continuous decay using outer radius
-            //   • softEdge   : 1 inside ir, 0→1 taper beyond — smooth boundary fade
+            // S ∝ sqrt(N / N_max) × (1 - d/R)² × softEdge × beamGain
             const arrayGain = Math.sqrt(towerN / 128);
             const pathLoss = Math.pow(Math.max(0, 1 - dist / irOuter), 2);
-            const strength = Math.min(1, arrayGain * pathLoss * softEdge);
+            const beamGain = connectedData.beamGain || 1.0;
+            const powerFactor = connectedData.powerFactor || 1.0;
+            const strength = Math.min(1, arrayGain * pathLoss * softEdge * beamGain * powerFactor);
 
             // ── Color: HSL gradient blue(1) → green(0.6) → orange(0.3) → red(0) ──
-            // hue: 240(blue) → 0(red) as strength falls
             const hue = Math.round(strength * 240);
             const sat = 100;
-            const lit = Math.round(45 + strength * 15); // 45-60%
+            const lit = Math.round(45 + strength * 15);
             const signalColor = `hsl(${hue}, ${sat}%, ${lit}%)`;
 
             // ── Connection line: thickness + glow scale with strength ────────
-            const lineWidth = 1 + strength * 4;          // 1px (weak) → 5px (strong)
-            const glowBlur = 4 + strength * 18;         // 4px → 22px
-            const lineAlpha = 0.4 + strength * 0.55;     // 0.4 → 0.95
+            const lineWidth = 1 + strength * 4;
+            const glowBlur = 4 + strength * 18;
+            const lineAlpha = 0.6 + strength * 0.35; // Boosted base alpha
 
             ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${lineAlpha})`;
             ctx.lineWidth = lineWidth;
@@ -216,31 +214,30 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
             ctx.stroke();
             ctx.shadowBlur = 0;
 
-            // ── Beam cone fill — opacity encodes strength ────────────────────
-            const angle = Math.atan2(user.y - tower.y, user.x - tower.x);
-            const coneAlpha = 0.05 + strength * 0.25;  // 0.05 (weak) → 0.30 (strong)
+            // ── Render dedicated beam cone for this user ─────────────────────
+            const userAngle = Math.atan2(user.y - tower.y, user.x - tower.x);
+            // Significantly boosted visibility for MU-MIMO
+            const coneAlpha = (0.12 + strength * 0.25) * Math.sqrt(powerFactor); 
 
             ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${coneAlpha})`;
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
-            ctx.lineTo(tower.x + ir * Math.cos(angle - beamHalfAngle), tower.y + ir * Math.sin(angle - beamHalfAngle));
-            ctx.arc(tower.x, tower.y, ir, angle - beamHalfAngle, angle + beamHalfAngle);
+            ctx.lineTo(tower.x + ir * Math.cos(userAngle - beamHalfAngle), tower.y + ir * Math.sin(userAngle - beamHalfAngle));
+            ctx.arc(tower.x, tower.y, ir, userAngle - beamHalfAngle, userAngle + beamHalfAngle);
             ctx.lineTo(tower.x, tower.y);
             ctx.fill();
 
-            // ── Beam edge dashed lines ───────────────────────────────────────
-            const edgeAlpha = 0.25 + strength * 0.45;
-            ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${edgeAlpha})`;
-            ctx.lineWidth = 1;
+            // Beam edge dashed lines
+            ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${0.3 * powerFactor + 0.2})`;
+            ctx.lineWidth = 1.5;
             ctx.setLineDash([3, 5]);
-            ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
-            ctx.lineTo(tower.x + ir * Math.cos(angle - beamHalfAngle), tower.y + ir * Math.sin(angle - beamHalfAngle));
+            ctx.lineTo(tower.x + ir * Math.cos(userAngle - beamHalfAngle), tower.y + ir * Math.sin(userAngle - beamHalfAngle));
             ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
-            ctx.lineTo(tower.x + ir * Math.cos(angle + beamHalfAngle), tower.y + ir * Math.sin(angle + beamHalfAngle));
+            ctx.lineTo(tower.x + ir * Math.cos(userAngle + beamHalfAngle), tower.y + ir * Math.sin(userAngle + beamHalfAngle));
             ctx.stroke();
             ctx.setLineDash([]);
 
@@ -252,6 +249,9 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
             ctx.fillText(`${Math.round(strength * 100)}%`, mx + 4, my - 4);
           }
         });
+
+
+
 
         const towerActive = connectedUsers.length > 0;
         ctx.fillStyle = towerActive ? '#00ff88' : '#4a5568';
@@ -276,7 +276,10 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
         ctx.font = '10px monospace';
         ctx.fillText(`T${tower.id}`, tower.x - 6, tower.y + 20);
         if (tower.state) {
-          ctx.fillText(`θ=${Math.round(tower.state.steering)}° N=${tower.state.elements}`, tower.x - 30, tower.y + 32);
+          const steerText = Array.isArray(tower.state.steering) 
+            ? tower.state.steering.map(s => Math.round(s) + '°').join(',')
+            : Math.round(tower.state.steering) + '°';
+          ctx.fillText(`θ=${steerText} N=${tower.state.elements}`, tower.x - 30, tower.y + 32);
         }
       });
 
@@ -351,7 +354,11 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
             <div key={t.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-light, #212d38)', minWidth: '130px' }}>
               <div style={{ fontSize: '11px', color: 'var(--accent, #00ff88)', marginBottom: '4px', fontWeight: 'bold', fontFamily: "'Orbitron', monospace" }}>Tower {t.id} Stats</div>
               <div style={{ fontSize: '11px', color: 'var(--text-dim, #78909c)', display: 'grid', gridTemplateColumns: '1fr auto', rowGap: '2px', fontFamily: "monospace" }}>
-                <span>θ:</span> <span style={{ color: '#fff' }}>{t.state.steering.toFixed(1)}°</span>
+                <span>θ:</span> <span style={{ color: '#fff' }}>
+                  {Array.isArray(t.state.steering) 
+                    ? t.state.steering.map(s => Math.round(s) + '°').join(',')
+                    : Math.round(t.state.steering) + '°'}
+                </span>
                 <span>Elements:</span> <span style={{ color: '#fff' }}>{t.state.elements}</span>
                 <span>HPBW:</span> <span style={{ color: '#fff' }}>{analyticalHPBW_deg(t.state.elements, t.state.spacing).toFixed(2)}°</span>
                 <span>Freq:</span> <span style={{ color: '#fff' }}>{t.state.freq?.toFixed(1)} GHz</span>
