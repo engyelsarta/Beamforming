@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Sidebar({ state, updateParam, updatePerSourceParam, setWaveform, setWindow, metrics, is5G }) {
+export default function Sidebar({ state, updateParam, updatePerSourceParam, setWaveform, setWindow, metrics, is5G, resetParams }) {
   const [configMode, setConfigMode] = useState('global');
   const [activeAntenna, setActiveAntenna] = useState(0);
 
@@ -217,6 +217,7 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
           </div>
         </>
       )}
+      <button className="reset-btn" onClick={resetParams} style={{ marginTop: '16px', width: '100%' }}>⟳ Reset to Defaults</button>
     </div>
   );
 }

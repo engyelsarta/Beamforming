@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function UltrasoundSidebar({ state, updateParam }) {
+export default function UltrasoundSidebar({ state, updateParam, resetParams }) {
   const noiseCursorLeft = `${(state.snr / 60) * 100}%`;
 
   return (
@@ -114,7 +114,7 @@ export default function UltrasoundSidebar({ state, updateParam }) {
         </div>
         <input type="range" className="orange" min="1" max="20" step="0.5" value={state.vesselDiameter} onInput={(e) => updateParam('vesselDiameter', parseFloat(e.target.value))} />
       </div>
-
+      <button className="reset-btn" onClick={resetParams} style={{ marginTop: '16px', width: '100%' }}>⟳ Reset to Defaults</button>
     </div>
   );
 }

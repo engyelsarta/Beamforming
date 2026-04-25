@@ -4,7 +4,7 @@ import PolarPlot from '../PolarPlot';
 
 export default class BaseTab extends Component {
   renderSidebar() {
-    const { state, updateParam, updatePerSourceParam, setWaveform, setWindow, metrics } = this.props;
+    const { state, updateParam, updatePerSourceParam, setWaveform, setWindow, metrics, resetParams } = this.props;
     return (
       <Sidebar 
         state={state} 
@@ -13,6 +13,7 @@ export default class BaseTab extends Component {
         setWaveform={setWaveform} 
         setWindow={setWindow} 
         metrics={metrics}
+        resetParams={resetParams}
       />
     );
   }

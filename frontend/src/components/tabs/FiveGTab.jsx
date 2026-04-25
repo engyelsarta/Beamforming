@@ -47,6 +47,7 @@ export default class FiveGTab extends BaseTab {
       <FiveGSidebar 
           state={this.props.state} 
           updateParam={this.props.updateParam} 
+          resetParams={this.props.resetParams}
       />
     );
   }

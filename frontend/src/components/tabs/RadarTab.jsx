@@ -105,17 +105,7 @@ export default class RadarTab extends Component {
         continue;
       }
 
-      // B. Sweep-based pruning: If the beam is CURRENTLY over the target's last known position
-      // but it's not detectable, it means it's now below the detection threshold.
-      let angDiff = Math.abs(entry.angle - simData.beamAngle);
-      if (angDiff > 180) angDiff = 360 - angDiff;
-      const inBeam = angDiff < (simData.effectiveBeamWidth / 2);
-      const detectableEcho = (simData.echoes || []).find(e => e.id === id && e.isDetectable);
-
-      if (inBeam && !detectableEcho) {
-        delete this.detectionLog[key];
-        continue;
-      }
+      // B. Persistence: Detections now stay until they time out (10s) or are deleted from the scenario.
 
       // C. General timeout (e.g. 10s) to catch other cases (object moved away, etc.)
       if ((timestamp - entry.lastSeen) > 10000) {
@@ -153,6 +143,7 @@ export default class RadarTab extends Component {
           state={state}
           updateParam={updateParam}
           metrics={radarData?.metrics}
+          resetParams={this.props.resetParams}
         />
 
         <div style={{
@@ -180,10 +171,6 @@ export default class RadarTab extends Component {
                   {radarData?.focusStatus || radarData?.phase || 'IDLE'}
                 </span></div>
                 <div>Speed: <span style={{ color: '#00ff88' }}>{state.scanSpeed}°/s</span></div>
-                <div style={{ marginTop: 6, color: '#00c4ff', fontFamily: 'Orbitron, monospace', fontSize: 9 }}>EFFECTIVE BEAM</div>
-                <div>Scale ×{((state.beamWidth ?? 20) / 20).toFixed(2)}: <span style={{ color: '#00ff88', fontWeight: 'bold' }}>
-                  {radarData?.effectiveBeamWidth?.toFixed(1) ?? '--'}°
-                </span></div>
               </div>
 
               <div style={{ color: '#00ff88', fontFamily: 'Orbitron, monospace', fontSize: 10, marginBottom: 8 }}>
@@ -193,11 +180,14 @@ export default class RadarTab extends Component {
               {logEntries.length === 0
                 ? <div style={{ color: 'var(--text-dim)', fontSize: 10, fontFamily: 'Share Tech Mono, monospace' }}>No targets detected yet</div>
                 : logEntries.map(e => {
-                  const isActive = (radarData?.echoes || []).some(fr => fr.id === e.id);
+                  const isLive = (radarData?.echoes || []).some(fr => fr.id === e.id);
+                  const isLastFocus = radarData?.lastFocusId === e.id;
+                  const isHighlighted = isLive || isLastFocus;
+
                   return (
                     <div key={e.id} style={{
-                      background: isActive ? 'rgba(0,255,136,0.09)' : 'rgba(0,255,136,0.03)',
-                      border: `1px solid ${isActive ? 'rgba(0,255,136,0.45)' : 'rgba(0,255,136,0.15)'}`,
+                      background: isHighlighted ? 'rgba(0,255,136,0.09)' : 'rgba(0,255,136,0.03)',
+                      border: `1px solid ${isHighlighted ? 'rgba(0,255,136,0.45)' : 'rgba(0,255,136,0.15)'}`,
                       padding: '7px 9px', marginBottom: 6,
                       fontFamily: 'Share Tech Mono, monospace', fontSize: 10,
                       transition: 'background 0.3s, border 0.3s',
@@ -215,7 +205,8 @@ export default class RadarTab extends Component {
                           }}>
                             {e.precision > 0.05 ? 'HIGH RES' : 'LOW RES'}
                           </span>
-                          {isActive && <span style={{ color: '#00ff88', fontSize: 9 }}>● LIVE</span>}
+                          {isLive && <span style={{ color: '#00ff88', fontSize: 9 }}>● LIVE</span>}
+                          {!isLive && isLastFocus && <span style={{ color: '#00c4ff', fontSize: 9 }}>◈ RESOLVED</span>}
                         </div>
                       </div>
                       <div style={{ color: 'var(--text-dim)' }}>

@@ -66,6 +66,13 @@ export default function App() {
   const setWaveform = (wf)  => setState(prev => ({ ...prev, waveform: wf }));
   const setWindow   = (win) => setState(prev => ({ ...prev, window:   win }));
 
+  const resetParams = () => {
+    const ActiveComponent = tabs[activeTab].tab;
+    if (ActiveComponent && ActiveComponent.defaultParams) {
+      setState(ActiveComponent.defaultParams);
+    }
+  };
+
   const ActiveTabComponent = tabs[activeTab].tab;
 
   return (
@@ -94,6 +101,7 @@ export default function App() {
           setWaveform={setWaveform}
           setWindow={setWindow}
           metrics={data?.metrics}
+          resetParams={resetParams}
         />
       )}
     </>

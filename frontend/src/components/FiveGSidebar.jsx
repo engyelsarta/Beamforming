@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function FiveGSidebar({ state, updateParam }) {
+export default function FiveGSidebar({ state, updateParam, resetParams }) {
   const towerParams = state.towerParams || {
     1: { elements: 64, spacing: 0.5, freq: 28.0 },
     2: { elements: 64, spacing: 0.5, freq: 28.0 },
@@ -45,6 +45,7 @@ export default function FiveGSidebar({ state, updateParam }) {
           </div>
         </div>
       ))}
+      <button className="reset-btn" onClick={resetParams} style={{ width: '100%' }}>⟳ Reset to Defaults</button>
     </div>
   );
 }

@@ -49,7 +49,7 @@ export default class UltrasoundTab extends Component {
 
     return (
       <div className="main" style={{ display: isVisible ? 'flex' : 'none' }}>
-        <UltrasoundSidebar state={effectiveState} updateParam={updateParam} />
+        <UltrasoundSidebar state={effectiveState} updateParam={updateParam} resetParams={this.props.resetParams} />
 
         <div style={{
           flex: 1, display: 'grid',

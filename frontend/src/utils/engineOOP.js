@@ -104,7 +104,7 @@ export class PhasedArray {
       const src = this.sources[i];
       src.freq = globalParams.freq;
       src.amplitude = globalParams.amplitude;
-      
+
       // Apply global phase offset to the complex weight
       const r = src.re_weight, im = src.im_weight;
       src.re_weight = r * cosPhi0 - im * sinPhi0;
@@ -256,10 +256,34 @@ export class ApplicationMode {
   constructor() {
     this.array = new PhasedArray();
     this.engine = new BeamformerEngine(this.array);
+    this._cachedPattern = null;
   }
+
   update_view(state, perSourceParams = null) {
     this.array.update_parameters(state, perSourceParams);
-    return this.engine.calculate_interference_pattern(state);
+    this._cachedPattern = this.engine.calculate_interference_pattern(state);
+    return this._cachedPattern;
+  }
+
+  // Shared method available to ALL subclasses
+  // Returns normalized gain (0.0 to 1.0) at a given angle offset
+  // relative to the current steering direction
+  getGainAtAngle(angleDeg) {
+    if (!this._cachedPattern) return 1.0;
+    const { theta, AF_norm } = this._cachedPattern;
+    if (!theta || !AF_norm || theta.length === 0) return 1.0;
+
+    // Find the closest angle in the pattern to the requested angle
+    let closestIdx = 0;
+    let closestDiff = Infinity;
+    for (let i = 0; i < theta.length; i++) {
+      const diff = Math.abs(theta[i] - angleDeg);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closestIdx = i;
+      }
+    }
+    return AF_norm[closestIdx];
   }
 }
 
@@ -472,25 +496,54 @@ export class FiveG_Simulator extends ApplicationMode {
 }
 
 export class Radar_Simulator extends ApplicationMode {
+
+  static DEFAULT_ARRAY_PARAMS = {
+    elements: 64,
+    spacing: 0.5,
+    freq: 2.4,
+    window: 'hamming',
+    amplitude: 1.0,
+    phase: 0,
+    power: 30,
+    waveform: 'pulsed',
+  };
+
   constructor() {
-    super();
+    super(); // properly initializes this.array and this.engine
     this.phase = 'SCANNING';
     this.currentAngle = 0;
     this.targetId = null;
     this.dwellTimer = 0;
     this.measuredSizes = {};
-    this.recentlyMeasured = new Set();
-    this.lastDetectionTime = 0;
-    this.effectiveBeamWidth = 15;
-    this.physicsHpbw = 15;
-
-    // Bug 1: Focus Queue
-    this.focusQueue = []; // Array of { angle, id (if resolved), isBlob }
+    this.focusQueue = [];
     this.focusQueueIndex = 0;
-    this.confirmedTargets = new Map(); // id -> { angle, distance, size, time }
+    this.confirmedTargets = new Map();
+    this.effectiveBeamWidth = 15;
+    this._lastPatternKey = null;
+    this.lastFocusSummary = null;
+    this.lastFocusId = null;
+  }
+  update_view(state, perSourceParams = null) {
+    const radarState = {
+      ...state,
+      ...Radar_Simulator.DEFAULT_ARRAY_PARAMS,  // inherits from class definition
+      steering: 0,
+      snr: Math.pow(10, (state.snr ?? 20) / 10),
+    };
+
+    const key = `${radarState.elements}|${radarState.spacing}|${radarState.freq}|${radarState.window}|${radarState.amplitude}`;
+    if (key !== this._lastPatternKey) {
+      this._lastPatternKey = key;
+      return super.update_view(radarState, perSourceParams);
+    }
+    return this._cachedPattern;
   }
 
   tick(dt, state) {
+    // Update the beamformer pattern every tick so getGainAtAngle()
+    // reflects the current steering angle and array configuration
+    this.update_view(state);
+
     const objects = state.objects || [];
     const baseSpeed = state.scanSpeed || 60;
     const maxRange = state.maxRange || 2000;
@@ -540,7 +593,9 @@ export class Radar_Simulator extends ApplicationMode {
       }
 
     } else if (this.phase === 'FOCUSING') {
-      this.effectiveBeamWidth = 3;
+      this.effectiveBeamWidth = parseFloat(
+        this._cachedPattern?.metrics?.hpbw ?? 3
+      );
 
       if (this.focusQueueIndex >= this.focusQueue.length) {
         // All queued targets processed
@@ -556,7 +611,7 @@ export class Radar_Simulator extends ApplicationMode {
       if (this.dwellTimer <= 0) {
         // Resolve sub-targets within the 3° beam at the current lock angle
         const subTargets = objects.filter(obj =>
-          this._isObjectInBeam(obj, currentTask.angle, 3, maxRange, snr)
+          this._isObjectInBeam(obj, currentTask.angle, this.effectiveBeamWidth, maxRange, snr)
         );
 
         if (currentTask.isBlob && subTargets.length > 1) {
@@ -585,6 +640,8 @@ export class Radar_Simulator extends ApplicationMode {
           if (target) {
             this.measuredSizes[target.id] = target.size;
             this.confirmedTargets.set(target.id, { ...target, time: Date.now() });
+            this.lastFocusSummary = `T${target.id} @ ${Math.round(target.angle)}°`;
+            this.lastFocusId = target.id;
           }
           this.focusQueueIndex++;
           this.targetId = null;
@@ -655,76 +712,89 @@ export class Radar_Simulator extends ApplicationMode {
     const inAngularRange = Math.abs(angDiff) <= (beamHalf + objAngHalf);
     if (!inAngularRange) return false;
 
-    // Bug 2: Partial detection at range boundary
     const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
     if (visibleFraction <= 0) return false;
 
-    // Physical Thresholding Logic
-    const snrDb = snr; // 0-40 dB directly from slider
-    const noiseFloorDb = -80; // Fixed receiver noise floor
+    // USE INHERITED getGainAtAngle() instead of hardcoded approximation
+    // This means window function, element count, spacing, frequency
+    // all genuinely affect detection behavior through the real array factor
+    const gain = this.getGainAtAngle(angDiff);
+    const gain2 = gain * gain;
+
+    const snrDb = snr;
+    const noiseFloorDb = -80;
     const detectionThreshold = noiseFloorDb + (40 - snrDb);
 
-    // Calculate potential signal strength
     const rangeRef = obj.distance / 100;
     const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
     const size2 = Math.pow(obj.size / 5, 2);
-    // Use visibleFraction to scale size
     const effectiveSize2 = size2 * visibleFraction;
 
-    // Check detection at peak gain (1.0)
-    const signalPower = effectiveSize2 / range4;
+    // gain2 now comes from the real beamformer pattern
+    const signalPower = (effectiveSize2 * gain2) / range4;
     const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
 
     return strengthDb > detectionThreshold;
   }
 
+  _getSignalStrength(obj, beamAngle, beamWidth, maxRange) {
+    const beamHalf = beamWidth / 2;
+    const objAngHalf = (obj.size / (obj.distance || 1)) * (180 / Math.PI) / 2;
+
+    let angDiff = obj.angle - beamAngle;
+    if (angDiff > 180) angDiff -= 360;
+    if (angDiff < -180) angDiff += 360;
+
+    if (Math.abs(angDiff) > beamHalf + objAngHalf) return null;
+
+    const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
+    if (visibleFraction <= 0) return null;
+
+    // Also uses real gain from inherited engine
+    const gain = this.getGainAtAngle(angDiff);
+    const gain2 = gain * gain;
+
+    const rangeRef = obj.distance / 100;
+    const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
+    const size2 = Math.pow(obj.size / 5, 2);
+    const signalPower = (size2 * gain2 * visibleFraction) / range4;
+
+    return 10 * Math.log10(Math.max(1e-12, signalPower));
+  }
+
 
   _generateRadarData(state, objects, maxRange) {
     const echoes = [];
-    const beamHalf = this.effectiveBeamWidth / 2;
     const snr = state.snr ?? 20;
+    const noiseFloorDb = -80;
+    const detectionThreshold = noiseFloorDb + (40 - snr);
 
     for (const obj of objects) {
-      const objAngHalf = (obj.size / (obj.distance || 1)) * (180 / Math.PI) / 2;
-      let angDiff = obj.angle - this.currentAngle;
-      if (angDiff > 180) angDiff -= 360;
-      if (angDiff < -180) angDiff += 360;
+      // Use _getSignalStrength which uses real gain — returns null if
+      // object is completely outside beam or range
+      const strengthDb = this._getSignalStrength(
+        obj, this.currentAngle, this.effectiveBeamWidth, maxRange
+      );
 
-      const totalHalf = beamHalf + objAngHalf;
-
-      // Bug 2: Partial detection at range boundary
-      const visibleFraction = this._getVisibleFraction(obj.distance, obj.size, maxRange);
-
-      if (Math.abs(angDiff) <= totalHalf && visibleFraction > 0) {
-        // Radar Equation: signal power ∝ (size^2 * gain^2 * visibleFraction) / range^4
-        const rangeRef = obj.distance / 100;
-        const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
-        const size2 = Math.pow(obj.size / 5, 2);
-
-        // Calculate gain based on angular distance from center
-        const normalizedDiff = Math.abs(angDiff) / (totalHalf || 1);
-        const afGain = normalizedDiff < 0.95 ? 1.0 : Math.max(0.2, 1.0 - (normalizedDiff - 0.95) * 10);
-        const gain2 = Math.pow(afGain, 2);
-
-        const signalPower = (size2 * gain2 * visibleFraction) / range4;
-        const strengthDb = 10 * Math.log10(Math.max(1e-12, signalPower));
-
-        // Apply physical detection threshold
-        const noiseFloorDb = -80;
-        const detectionThreshold = noiseFloorDb + (40 - snr);
-        const isDetectable = strengthDb > detectionThreshold;
-
+      // Include ALL objects with any signal return in echoes
+      // even if below threshold — graph shows everything,
+      // detection system filters by isDetectable
+      if (strengthDb !== null) {
         echoes.push({
           id: obj.id,
           angle: obj.angle,
-          relAngle: angDiff,
           distance: obj.distance,
           size: obj.size,
           measuredSize: this.measuredSizes[obj.id],
           strength: strengthDb,
-          afGain: afGain,
-          isDetectable: isDetectable,
-          isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id
+          isDetectable: strengthDb > detectionThreshold,
+          isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id,
+          afGain: this.getGainAtAngle((() => {
+            let d = obj.angle - this.currentAngle;
+            if (d > 180) d -= 360;
+            if (d < -180) d += 360;
+            return d;
+          })())
         });
       }
     }
@@ -732,17 +802,20 @@ export class Radar_Simulator extends ApplicationMode {
     let focusStatus = this.phase;
     if (this.phase === 'FOCUSING' && this.focusQueue.length > 0) {
       const current = Math.min(this.focusQueueIndex + 1, this.focusQueue.length);
-      focusStatus = `FOCUSING ${current} of ${this.focusQueue.length}`;
+      const targetId = this.targetId || this.focusQueue[this.focusQueueIndex]?.id;
+      focusStatus = `FOCUSING ${targetId ? 'T' + targetId : ''} (${current}/${this.focusQueue.length})`;
+    } else if (this.lastFocusSummary) {
+      focusStatus = `SCANNING (${this.lastFocusSummary})`;
     }
 
     return {
       echoes,
       phase: this.phase,
-      focusStatus: focusStatus,
+      focusStatus,
+      lastFocusId: this.lastFocusId,
       beamAngle: this.currentAngle,
       effectiveBeamWidth: this.effectiveBeamWidth,
       measuredSizes: { ...this.measuredSizes }
     };
   }
 }
-

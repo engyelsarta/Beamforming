@@ -2,7 +2,7 @@ import React from 'react';
 
 const nextId = (objects) => (objects.length === 0 ? 1 : Math.max(...objects.map(o => o.id)) + 1);
 
-export default function RadarSidebar({ state, updateParam, metrics }) {
+export default function RadarSidebar({ state, updateParam, metrics, resetParams }) {
   const objects = state.objects || [];
 
   const addObject = () => {
@@ -155,6 +155,7 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
           </div>
         </>
       )}
+      <button className="reset-btn" onClick={resetParams} style={{ marginTop: '16px', width: '100%' }}>⟳ Reset to Defaults</button>
     </div>
   );
 }
