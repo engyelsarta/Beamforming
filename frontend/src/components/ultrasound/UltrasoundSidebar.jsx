@@ -1,12 +1,12 @@
 import React from 'react';
 
-export default function UltrasoundSidebar({ state, updateParam, resetParams }) {
+export default function UltrasoundSidebar({ state, updateParam }) {
   const noiseCursorLeft = `${(state.snr / 60) * 100}%`;
 
   return (
     <div className="sidebar">
       <div className="section-label">Transducer Parameters</div>
-      
+
       <div className="param">
         <div className="param-header">
           <span className="param-name">Center Frequency</span>
@@ -28,11 +28,11 @@ export default function UltrasoundSidebar({ state, updateParam, resetParams }) {
           <span className="param-name">Element Spacing</span>
           <span className="param-value">{state.spacing.toFixed(2)}<span className="param-unit">mm</span></span>
         </div>
-        <input 
-            type="number" 
-            style={{ width: '100%', padding: '4px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', fontFamily: "'Share Tech Mono', monospace" }} 
-            value={state.spacing} 
-            onChange={(e) => updateParam('spacing', parseFloat(e.target.value))} 
+        <input
+          type="number"
+          style={{ width: '100%', padding: '4px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', fontFamily: "'Share Tech Mono', monospace" }}
+          value={state.spacing}
+          onChange={(e) => updateParam('spacing', parseFloat(e.target.value))}
         />
       </div>
 
@@ -42,6 +42,14 @@ export default function UltrasoundSidebar({ state, updateParam, resetParams }) {
           <span className="param-value">{state.steering}<span className="param-unit">°</span></span>
         </div>
         <input type="range" min="-60" max="60" step="1" value={state.steering} onInput={(e) => updateParam('steering', parseFloat(e.target.value))} />
+      </div>
+
+      <div className="param">
+        <div className="param-header">
+          <span className="param-name">Scan Speed</span>
+          <span className="param-value">{state.scanLinesPerFrame}<span className="param-unit">lines/frame</span></span>
+        </div>
+        <input type="range" min="1" max="120" step="1" value={state.scanLinesPerFrame} onInput={(e) => updateParam('scanLinesPerFrame', parseFloat(e.target.value))} />
       </div>
 
       <div className="param">
@@ -114,7 +122,7 @@ export default function UltrasoundSidebar({ state, updateParam, resetParams }) {
         </div>
         <input type="range" className="orange" min="1" max="20" step="0.5" value={state.vesselDiameter} onInput={(e) => updateParam('vesselDiameter', parseFloat(e.target.value))} />
       </div>
-      <button className="reset-btn" onClick={resetParams} style={{ marginTop: '16px', width: '100%' }}>⟳ Reset to Defaults</button>
+
     </div>
   );
 }

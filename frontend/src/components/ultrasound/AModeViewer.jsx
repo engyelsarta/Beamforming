@@ -8,13 +8,13 @@ export default function AModeViewer({ state, regions, probePosRef }) {
     const canvas = canvasRef.current;
     if (!canvas || !regions) return;
     const ctx = canvas.getContext('2d');
-    
+
     let animationFrameId;
 
     const render = () => {
       const W = canvas.width;
       const H = canvas.height;
-      
+
       // Draw background
       ctx.fillStyle = '#080f14'; // var(--panel)
       ctx.fillRect(0, 0, W, H);
@@ -35,7 +35,7 @@ export default function AModeViewer({ state, regions, probePosRef }) {
 
       const numSamples = 600;
       const maxDepthMm = 200; // Total physical depth of phantom
-      
+
       const simulator = new AMode_Simulator();
       const aModeData = simulator.generateLine(state, regions, probePosRef.current, state.steering, numSamples, maxDepthMm);
 
@@ -44,7 +44,7 @@ export default function AModeViewer({ state, regions, probePosRef }) {
       ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      
+
       const marginL = 45;
       const marginR = 15;
       const marginT = 20;
@@ -65,7 +65,7 @@ export default function AModeViewer({ state, regions, probePosRef }) {
       // Draw axes titles
       ctx.fillStyle = '#00ff88'; // var(--accent)
       ctx.font = 'bold 11px Rajdhani, Orbitron, sans-serif';
-      
+
       // Y-axis title (rotated)
       ctx.save();
       ctx.translate(14, marginT + plotH / 2);
@@ -77,7 +77,7 @@ export default function AModeViewer({ state, regions, probePosRef }) {
       // X-axis title
       ctx.textAlign = 'center';
       ctx.fillText('DEPTH (mm)', startX + plotW / 2, H - 8);
-      
+
       // Y-axis ticks and labels
       ctx.textAlign = 'right';
       ctx.font = '10px Share Tech Mono, monospace';
@@ -117,7 +117,7 @@ export default function AModeViewer({ state, regions, probePosRef }) {
         const x = startX + (i / numSamples) * plotW;
         const val = Math.min(1.0, aModeData[i]);
         const y = startY - val * plotH;
-        
+
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -127,7 +127,7 @@ export default function AModeViewer({ state, regions, probePosRef }) {
       animationFrameId = requestAnimationFrame(render);
     };
     render();
-    
+
     return () => cancelAnimationFrame(animationFrameId);
   }, [state, regions, probePosRef]);
 

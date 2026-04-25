@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { Doppler_Simulator } from '../../utils/engineOOP';
 
 export default function DopplerViewer({ state, probePosRef }) {
   const canvasRef = useRef(null);
@@ -37,32 +38,10 @@ export default function DopplerViewer({ state, probePosRef }) {
       }
       ctx.stroke();
       
-      // Calculate Doppler Velocity
-      // Beam vector: sin(steering) in X, cos(steering) in Y
-      // Vessel vector: cos(vesselAngle) in X, sin(vesselAngle) in Y
-      const st = state.steering * Math.PI / 180;
-      const va = state.vesselAngle * Math.PI / 180;
-      
-      // Doppler angle = angle between beam and vessel flow
-      // cos(theta) = dot product of normalized vectors
-      const cosTheta = Math.sin(st) * Math.cos(va) + Math.cos(st) * Math.sin(va);
-      
-      // Measured velocity
-      let measuredVel = state.bloodVelocity * cosTheta;
-      
-      // Add pulsatile variation (simulating cardiac cycle)
-      const t = Date.now() / 1000;
-      const heartRate = 1.2; // 72 bpm
-      // Simple systolic peak and diastolic flow
-      const pulse = Math.pow(Math.sin(Math.PI * t * heartRate), 4) * 0.8 + 0.2; 
-      
-      measuredVel *= pulse;
-      
-      // Add noise
-      const snrLin = Math.pow(10, state.snr / 20);
-      const noise = ((Math.random() * 2 - 1) * 20) / snrLin;
-      
-      const finalVel = measuredVel + noise;
+      const simulator = new Doppler_Simulator();
+      const dopplerData = simulator.generateDopplerVelocity(state);
+      const finalVel = dopplerData.velocity;
+      const cosTheta = dopplerData.cosTheta;
       
       // Shift history array
       historyRef.current.push(finalVel);

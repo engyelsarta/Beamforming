@@ -12,6 +12,7 @@ export default class UltrasoundTab extends Component {
     elements: 128,
     spacing: 0.15, // mm (approx lambda/2 for 5MHz)
     steering: 0,
+    scanLinesPerFrame: 1, // Number of scan lines generated per animation frame
     focalDepth: 60, // mm
     pulseLength: 2, // cycles
     snr: 40, // dB
@@ -49,7 +50,7 @@ export default class UltrasoundTab extends Component {
 
     return (
       <div className="main" style={{ display: isVisible ? 'flex' : 'none' }}>
-        <UltrasoundSidebar state={effectiveState} updateParam={updateParam} resetParams={this.props.resetParams} />
+        <UltrasoundSidebar state={effectiveState} updateParam={updateParam} />
 
         <div style={{
           flex: 1, display: 'grid',
