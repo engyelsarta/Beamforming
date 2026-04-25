@@ -24,6 +24,26 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
 
   return (
     <div className="sidebar" style={{ width: 280, minWidth: 280 }}>
+      <button 
+        className="reset-btn" 
+        onClick={() => updateParam('isPaused', !state.isPaused)}
+        style={{ 
+          marginBottom: 16, 
+          width: '100%', 
+          background: state.isPaused ? 'rgba(255, 150, 0, 0.15)' : 'rgba(0, 255, 136, 0.1)',
+          borderColor: state.isPaused ? '#ff9600' : '#00ff88',
+          color: state.isPaused ? '#ff9600' : '#00ff88',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          fontSize: 11,
+          letterSpacing: '1px'
+        }}
+      >
+        <span>{state.isPaused ? '▶' : 'Ⅱ'}</span>
+        {state.isPaused ? 'RESUME SCANNING' : 'PAUSE SCANNING'}
+      </button>
 
       {/* ── Scanning ──────────────────────────────────────────────────── */}
       <div className="section-label" style={{ marginTop: 0 }}>Scanning</div>

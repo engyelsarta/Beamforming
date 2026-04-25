@@ -18,6 +18,7 @@ export default class RadarTab extends Component {
     beamWidth: 20,
     scanSpeed: 60,
     maxRange: 2000,
+    isPaused: false,
     objects: [
       { id: 1, angle: 145, distance: 1000, size: 6 },
       { id: 2, angle: 200, distance: 700, size: 4 },
@@ -74,7 +75,8 @@ export default class RadarTab extends Component {
     }
 
     // 2. Drive the autonomous simulator
-    const simData = this.sim.tick(dtSec, state);
+    const effectiveDt = state.isPaused ? 0 : dtSec;
+    const simData = this.sim.tick(effectiveDt, state);
 
     // 3. Update refs for RadarPlot (no re-render)
     this.beamAngleRef.current = simData.beamAngle;
