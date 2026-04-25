@@ -67,13 +67,19 @@ export class PhasedArray {
   set_steering_angles(angles_deg, base_freq) {
     const K = Math.max(1, angles_deg.length);
     const ampScale = 1.0 / Math.sqrt(K);
-    const k_val = 2 * Math.PI * (base_freq / 2.4);
+    // TTD: True Time Delay implementation
+    // We use a normalized speed of light where c = 2.4 (since at f=2.4, lambda=1)
+    const c = 2.4;
 
     for (const src of this.sources) {
       let re = 0, im = 0;
       for (const theta_deg of angles_deg) {
         const thetaSteer = theta_deg * Math.PI / 180;
-        const psi = -k_val * (src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer));
+        // True Time Delay: delay tau = distance / c
+        const tau = -(src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer)) / c;
+        // Phase applied is based on the specific element's frequency, avoiding beam squint
+        const psi = 2 * Math.PI * src.freq * tau;
+        
         re += Math.cos(psi);
         im += Math.sin(psi);
       }
@@ -205,28 +211,52 @@ export class BeamformerEngine {
     // 2D FIELD map for visualizer
     const GS = 120;
     const field = [];
+    
+    // Determine bounds based on array size to cover the full hemisphere
+    const arrayCenterX = (N - 1) * params.spacing / 2;
+    // Ensure we can see a wide lateral range and the full beam
+    const max_X = Math.max(10, (N - 1) * params.spacing * 1.5);
+    const min_X = -max_X;
+    const max_Y = max_X * 1.5;
+    const min_Y = 0;
+
     for (let row = 0; row < GS; row++) {
       const rowArr = new Float32Array(GS);
-      const Y = 1.5 - (row / (GS - 1)) * 1.5;
+      // Y goes from max_Y (top) to min_Y (bottom)
+      const Y = max_Y - (row / (GS - 1)) * (max_Y - min_Y);
       for (let col = 0; col < GS; col++) {
-        const X = -1 + (col / (GS - 1)) * 2;
-        const R = Math.sqrt(X * X + Y * Y) + 1e-9;
+        const X = min_X + (col / (GS - 1)) * (max_X - min_X);
 
-        let re = 0, im = 0;
-        const tg = Math.atan2(X, Y); // Angle from Y axis
-        const MathSinTg = Math.sin(tg);
-        const MathCosTg = Math.cos(tg);
+        let re_inst = 0;
         for (let n = 0; n < N; n++) {
           const src = sources[n];
+          // Physical distance from element to pixel
+          const elemX = src.x - arrayCenterX;
+          const elemY = src.y;
+          
+          const dx = X - elemX;
+          const dy = Y - elemY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
           const k = 2 * Math.PI * (src.freq / 2.4);
-          const psi = k * (src.x * MathSinTg + src.y * MathCosTg);
-          const cosPsi = Math.cos(psi);
-          const sinPsi = Math.sin(psi);
-
-          re += src.amplitude * (src.re_weight * cosPsi - src.im_weight * sinPsi);
-          im += src.amplitude * (src.re_weight * sinPsi + src.im_weight * cosPsi);
+          
+          // Phase delay = -k * dist
+          const kd = k * dist;
+          const cosKd = Math.cos(kd);
+          const sinKd = Math.sin(kd);
+          
+          // Apply near-field falloff that doesn't over-suppress near the source
+          const falloff = 1.0 / (1.0 + dist * 0.2);
+          
+          // Real part of the instantaneous wavefield:
+          // Re{ W * exp(-j * kd) } = re_w * cos(kd) + im_w * sin(kd)
+          re_inst += src.amplitude * (src.re_weight * cosKd + src.im_weight * sinKd) * falloff;
         }
-        let v = Math.sqrt(re * re + im * im) ** wfFactor / (Math.pow(R, 0.8) + 0.1);
+        
+        // Show constructive crests (positive ripples) to visualize circular wavefronts
+        let v = Math.max(0, re_inst);
+        // Nonlinear mapping for perceptual uniformity and fringe visibility
+        v = Math.pow(v, 0.4);
         rowArr[col] = v;
       }
       field.push(rowArr);
@@ -241,6 +271,7 @@ export class BeamformerEngine {
       AF_norm: Array.from(AF_norm),
       AF_db: Array.from(AF_db),
       field: fieldNorm,
+      fieldExtent: { min_X, max_X, min_Y, max_Y },
       metrics: {
         hpbw: hpbw.toFixed(2),
         sll: sll_db.toFixed(2),

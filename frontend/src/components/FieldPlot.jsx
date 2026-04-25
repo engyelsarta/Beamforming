@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { resizeCanvas } from '../utils/canvasUtils';
 
-function drawField(canvas, wrap, field, state) {
+function drawField(canvas, wrap, field, state, simData) {
   resizeCanvas(canvas, wrap);
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
@@ -38,18 +38,23 @@ function drawField(canvas, wrap, field, state) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(offCanvas, 0, 0, W, H);
 
-  // Draw the array elements (sources) cleanly at the bottom
   const N = state?.elements || 16;
-  // Let the array visually expand based on state.spacing
-  // max allowable width is W * 0.8
-  // Assume a fixed scale where 1.0 spacing looks like a decent gap.
-  const visualSpacing = Math.min(W * 0.8 / Math.max(1, N - 1), 50 * (state?.spacing || 0.5));
-  const arrW = visualSpacing * (N - 1);
-  const startX = W / 2 - arrW / 2;
+  const spacing = state?.spacing || 0.5;
+  const arrW = (N - 1) * spacing;
   const elemY = H - 15;
 
   for (let n = 0; n < N; n++) {
-    const ex = startX + n * visualSpacing;
+    let ex;
+    if (simData && simData.fieldExtent) {
+      const { min_X, max_X } = simData.fieldExtent;
+      const srcX = (n * spacing) - (arrW / 2);
+      ex = ((srcX - min_X) / (max_X - min_X)) * W;
+    } else {
+      const visualSpacing = Math.min(W * 0.8 / Math.max(1, N - 1), 50 * spacing);
+      const startX = W / 2 - (visualSpacing * (N - 1)) / 2;
+      ex = startX + n * visualSpacing;
+    }
+
     ctx.beginPath();
     // distinct small rectangles
     ctx.rect(ex - 3, elemY - 6, 6, 12);
@@ -76,7 +81,7 @@ export default function FieldPlot({ data, state }) {
 
     const draw = () => {
       if (wrapRef.current && canvasRef.current) {
-        drawField(canvasRef.current, wrapRef.current, data.field, state);
+        drawField(canvasRef.current, wrapRef.current, data.field, state, data);
       }
     };
 
