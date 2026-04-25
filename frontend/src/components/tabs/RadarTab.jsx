@@ -94,7 +94,7 @@ export default class RadarTab extends Component {
     for (const key of Object.keys(this.detectionLog)) {
       const entry = this.detectionLog[key];
       const id = Number(key);
-      
+
       // A. Object deleted from scenario
       if (!liveIds.has(id)) {
         delete this.detectionLog[key];
