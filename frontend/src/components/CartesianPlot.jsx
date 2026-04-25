@@ -14,8 +14,8 @@ function drawCartesian(canvas, wrap, theta, af_db, state) {
 
   ctx.strokeStyle = 'rgba(0,255,136,0.07)';
   ctx.lineWidth=1;
-  for(let i=0;i<=6;i++){
-    const y=pad.t+i*ph/6;
+  for(let i=0;i<=7;i++){
+    const y=pad.t+i*ph/7;
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();
     const db = -i*10;
     ctx.fillStyle='rgba(0,255,136,0.4)';ctx.font='10px Share Tech Mono';ctx.textAlign='right';
@@ -41,7 +41,7 @@ function drawCartesian(canvas, wrap, theta, af_db, state) {
   ctx.moveTo(pad.l,pad.t+ph);
   for(let i=0;i<N;i++){
     const x=pad.l+(i/(N-1))*pw;
-    const y=pad.t+(1-Math.max(0,(af_db[i]+60)/60))*ph;
+    const y=pad.t+(1-Math.max(0,(af_db[i]+70)/70))*ph;
     if(i===0)ctx.lineTo(x,y); else ctx.lineTo(x,y);
   }
   ctx.lineTo(pad.l+pw,pad.t+ph);ctx.closePath();
@@ -53,7 +53,7 @@ function drawCartesian(canvas, wrap, theta, af_db, state) {
   ctx.beginPath();ctx.strokeStyle='#00ff88';ctx.lineWidth=1.5;
   for(let i=0;i<N;i++){
     const x=pad.l+(i/(N-1))*pw;
-    const y=pad.t+(1-Math.max(0,(af_db[i]+60)/60))*ph;
+    const y=pad.t+(1-Math.max(0,(af_db[i]+70)/70))*ph;
     if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
   ctx.shadowColor='#00ff88';ctx.shadowBlur=6;ctx.stroke();ctx.shadowBlur=0;

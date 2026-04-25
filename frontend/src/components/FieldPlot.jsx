@@ -93,10 +93,6 @@ export default function FieldPlot({ data, state }) {
     };
   }, [data, state]);
 
-  // Labels for status bar
-  const wfLabels = { sinusoidal:'SIN', pulsed:'PLS', gaussian:'GSN', chirp:'CHR' };
-  const wfLabel = state ? (wfLabels[state.waveform] || state.waveform.toUpperCase()) : '';
-
   return (
     <div className="viz-panel full-width">
       <div className="viz-title"><span>◈</span>2D INTERFERENCE FIELD</div>
@@ -107,10 +103,9 @@ export default function FieldPlot({ data, state }) {
         <div className="status-bar">
           <span className="status-ok">● LIVE</span>
           <span>N={Math.round(state.elements)}</span>
-          <span>f={state.freq.toFixed(2)} GHz</span>
+          <span>f={(state.freq * 1000).toFixed(0)} MHz</span>
           <span>θ={Math.round(state.steering)}°</span>
-          <span>{wfLabel}</span>
-          <span>SNR={state.snr.toFixed(0)}dB</span>
+          <span>SNR={(10 * Math.log10(Math.max(1e-4, state.snr))).toFixed(1)}dB</span>
         </div>
       )}
     </div>

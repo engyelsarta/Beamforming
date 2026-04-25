@@ -1,24 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { resizeCanvas } from '../utils/canvasUtils';
 
-function drawPolar(canvas, wrap, theta, AF_norm, state) {
+function drawPolar(canvas, wrap, theta, af_db, state) {
   resizeCanvas(canvas, wrap);
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
 
-  if (!theta || !AF_norm) return;
+  if (!theta || !af_db) return;
 
   const cx = W/2, cy = H*0.85;
   const R = Math.min(W,H)*0.75;
 
   ctx.strokeStyle='rgba(0,255,136,0.07)';ctx.lineWidth=1;
-  for(let r=0.25;r<=1;r+=0.25){
+  for(let r=1/7;r<=1;r+=1/7){
     ctx.beginPath();
     ctx.arc(cx,cy,R*r,Math.PI,0);
     ctx.stroke();
     ctx.fillStyle='rgba(0,255,136,0.3)';ctx.font='9px Share Tech Mono';ctx.textAlign='center';
-    ctx.fillText(`-${Math.round((1-r)*60)}dB`,cx,cy-R*r+12);
+    ctx.fillText(`-${Math.round((1-r)*70)}dB`,cx,cy-R*r+12);
   }
 
   ctx.strokeStyle='rgba(0,255,136,0.06)';
@@ -42,7 +42,7 @@ function drawPolar(canvas, wrap, theta, AF_norm, state) {
   ctx.beginPath();
   for(let i=0;i<N;i++){
     const ang=theta[i]*Math.PI/180;
-    const r=AF_norm[i]*R;
+    const r=Math.max(0, (af_db[i] + 70) / 70) * R;
     const x=cx+Math.sin(ang)*r, y=cy-Math.cos(ang)*r;
     if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
@@ -55,7 +55,7 @@ function drawPolar(canvas, wrap, theta, AF_norm, state) {
   ctx.beginPath();ctx.strokeStyle='#00ff88';ctx.lineWidth=1.5;
   for(let i=0;i<N;i++){
     const ang=theta[i]*Math.PI/180;
-    const r=AF_norm[i]*R;
+    const r=Math.max(0, (af_db[i] + 70) / 70) * R;
     const x=cx+Math.sin(ang)*r, y=cy-Math.cos(ang)*r;
     if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
@@ -71,7 +71,7 @@ export default function PolarPlot({ data, state }) {
 
     const draw = () => {
       if (wrapRef.current && canvasRef.current) {
-        drawPolar(canvasRef.current, wrapRef.current, data.theta, data.AF_norm, state);
+        drawPolar(canvasRef.current, wrapRef.current, data.theta, data.AF_db, state);
       }
     };
 

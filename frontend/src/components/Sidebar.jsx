@@ -54,9 +54,9 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
       <div className="param">
         <div className="param-header">
           <span className="param-name">Frequency</span>
-          <span className="param-value">{state.freq.toFixed(2)}<span className="param-unit">GHz</span></span>
+          <span className="param-value">{(state.freq * 1000).toFixed(0)}<span className="param-unit">MHz</span></span>
         </div>
-        <input type="range" className="blue" min="0.5" max="100" step="0.1" value={state.freq} onInput={(e) => updateParam('freq', parseFloat(e.target.value))} />
+        <input type="range" className="blue" min="500" max="100000" step="100" value={state.freq * 1000} onInput={(e) => updateParam('freq', parseFloat(e.target.value) / 1000)} />
       </div>
 
       {!is5G && (
@@ -163,25 +163,6 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
           </div>
 
           <div className="param">
-            <div className="param-header">
-              <span className="param-name">Pulse Duration / Bandwidth</span>
-              <span className="param-value">{state.pulseDuration?.toFixed(1) || 1.0}</span>
-            </div>
-            <input type="range" className="blue" min="0.1" max="50.0" step="0.5" value={state.pulseDuration || 1.0} onInput={(e) => updateParam('pulseDuration', parseFloat(e.target.value))} />
-          </div>
-
-          <div className="param">
-            <div className="param-header"><span className="param-name">Signal Waveform</span></div>
-            <div className="wf-chips">
-              {['sinusoidal', 'pulsed', 'gaussian', 'chirp'].map(wf => (
-                <div key={wf} className={`wf-chip ${state.waveform === wf ? 'active' : ''}`} onClick={() => setWaveform(wf)}>
-                  {wf === 'sinusoidal' ? 'Sine' : wf.charAt(0).toUpperCase() + wf.slice(1)}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="param">
             <div className="param-header"><span className="param-name">Window (Apodization)</span></div>
             <select value={state.window} onChange={(e) => setWindow(e.target.value)}>
               <option value="rectangular">Rectangular</option>
@@ -192,29 +173,7 @@ export default function Sidebar({ state, updateParam, updatePerSourceParam, setW
             </select>
           </div>
 
-          <div className="section-label" style={{ marginTop: '8px' }}>Computed Analytics</div>
-          <div className="metrics">
-            <div className="metric-item">
-              <div className="metric-val">{metrics?.hpbw || '--'}</div>
-              <div className="metric-lbl">HPBW (°)</div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-val">{metrics?.sll || '--'}</div>
-              <div className="metric-lbl">SLL (dB)</div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-val" style={{ color: 'var(--accent3)' }}>{metrics?.eirp || '--'}</div>
-              <div className="metric-lbl">EIRP (dBm)</div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-val" style={{ color: 'var(--accent2)' }}>{metrics?.noiseFloor || '--'}</div>
-              <div className="metric-lbl">Noise Floor</div>
-            </div>
-            <div className="metric-item" style={{ gridColumn: '1/3' }}>
-              <div className="metric-val" style={{ fontSize: '12px' }}>{metrics?.directivity || '--'}</div>
-              <div className="metric-lbl">Array Directivity (dB)</div>
-            </div>
-          </div>
+
         </>
       )}
       <button className="reset-btn" onClick={resetParams} style={{ marginTop: '16px', width: '100%' }}>⟳ Reset to Defaults</button>

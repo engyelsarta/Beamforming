@@ -180,7 +180,7 @@ export class BeamformerEngine {
     const AF_db = new Float64Array(M);
     for (let i = 0; i < M; i++) {
       AF_norm[i] = (AF_mag[i] / (maxMag + 1e-12)) ** wfFactor;
-      AF_db[i] = Math.max(-60, 20 * Math.log10(AF_norm[i] + 1e-12));
+      AF_db[i] = Math.max(-70, 20 * Math.log10(AF_norm[i] + 1e-12));
     }
 
     const halfPow = 1 / Math.SQRT2;
