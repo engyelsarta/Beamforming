@@ -5,12 +5,12 @@ function drawField(canvas, wrap, field, state) {
   resizeCanvas(canvas, wrap);
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,W,H);
+  ctx.clearRect(0, 0, W, H);
 
   if (!field) return;
 
   const GS = field.length;
-  
+
   // Create an offscreen canvas to hold the 120x120 grid
   // This allows the browser to scale and smooth it naturally
   const offCanvas = document.createElement('canvas');
@@ -19,18 +19,18 @@ function drawField(canvas, wrap, field, state) {
   const offCtx = offCanvas.getContext('2d');
   const imgData = offCtx.createImageData(GS, GS);
   const data = imgData.data;
-  
-  for (let row=0; row<GS; row++) {
-    for (let col=0; col<GS; col++) {
+
+  for (let row = 0; row < GS; row++) {
+    for (let col = 0; col < GS; col++) {
       const v = field[row][col];
       const idx = (row * GS + col) * 4;
       data[idx] = Math.floor(v * 20);      // R
-      data[idx+1] = Math.floor(v * 255);   // G
-      data[idx+2] = Math.floor(v * 80);    // B
-      data[idx+3] = Math.floor(Math.min(1, v * 2) * 255); // A
+      data[idx + 1] = Math.floor(v * 255);   // G
+      data[idx + 2] = Math.floor(v * 80);    // B
+      data[idx + 3] = Math.floor(Math.min(1, v * 2) * 255); // A
     }
   }
-  
+
   offCtx.putImageData(imgData, 0, 0);
 
   // Draw scaled and smoothed onto main canvas
@@ -45,11 +45,11 @@ function drawField(canvas, wrap, field, state) {
   // Assume a fixed scale where 1.0 spacing looks like a decent gap.
   const visualSpacing = Math.min(W * 0.8 / Math.max(1, N - 1), 50 * (state?.spacing || 0.5));
   const arrW = visualSpacing * (N - 1);
-  const startX = W/2 - arrW/2;
+  const startX = W / 2 - arrW / 2;
   const elemY = H - 15;
 
-  for (let n=0; n<N; n++) {
-    const ex = startX + n*visualSpacing;
+  for (let n = 0; n < N; n++) {
+    const ex = startX + n * visualSpacing;
     ctx.beginPath();
     // distinct small rectangles
     ctx.rect(ex - 3, elemY - 6, 6, 12);
@@ -58,7 +58,7 @@ function drawField(canvas, wrap, field, state) {
     ctx.strokeStyle = '#020a06';
     ctx.lineWidth = 1;
     ctx.stroke();
-    
+
     // add green glow to represent source emission
     ctx.shadowColor = '#00ff88';
     ctx.shadowBlur = 8;
@@ -85,7 +85,7 @@ export default function FieldPlot({ data, state }) {
     const ro = new ResizeObserver(() => {
       draw();
     });
-    
+
     if (wrapRef.current) ro.observe(wrapRef.current);
 
     return () => {
