@@ -696,20 +696,20 @@ export class Radar_Simulator extends ApplicationMode {
         // Apply physical detection threshold
         const noiseFloorDb = -80;
         const detectionThreshold = noiseFloorDb + (40 - snr);
+        const isDetectable = strengthDb > detectionThreshold;
 
-        if (strengthDb > detectionThreshold) {
-          echoes.push({
-            id: obj.id,
-            angle: obj.angle,
-            relAngle: angDiff,
-            distance: obj.distance,
-            size: obj.size,
-            measuredSize: this.measuredSizes[obj.id],
-            strength: strengthDb,
-            afGain: afGain,
-            isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id
-          });
-        }
+        echoes.push({
+          id: obj.id,
+          angle: obj.angle,
+          relAngle: angDiff,
+          distance: obj.distance,
+          size: obj.size,
+          measuredSize: this.measuredSizes[obj.id],
+          strength: strengthDb,
+          afGain: afGain,
+          isDetectable: isDetectable,
+          isFocused: this.phase === 'FOCUSING' && this.targetId === obj.id
+        });
       }
     }
 

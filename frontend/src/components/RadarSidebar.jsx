@@ -51,10 +51,10 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
       <div className="param">
         <div className="param-header">
           <span className="param-name">Beam Width</span>
-          <span className="param-value">{state.beamWidth || 20}<span className="param-unit">°</span></span>
+          <span className="param-value">{state.beamWidth ?? 20}<span className="param-unit">°</span></span>
         </div>
         <input type="range" min="2" max="90" step="1"
-          value={state.beamWidth || 20}
+          value={state.beamWidth ?? 20}
           onChange={e => updateParam('beamWidth', parseInt(e.target.value))} />
         <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3 }}>
           Narrow = precise · Wide = fast
@@ -64,10 +64,10 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
       <div className="param">
         <div className="param-header">
           <span className="param-name">Scan Speed</span>
-          <span className="param-value">{state.scanSpeed || 60}<span className="param-unit">°/s</span></span>
+          <span className="param-value">{state.scanSpeed ?? 60}<span className="param-unit">°/s</span></span>
         </div>
         <input type="range" min="5" max="720" step="5"
-          value={state.scanSpeed || 60}
+          value={state.scanSpeed ?? 60}
           onChange={e => updateParam('scanSpeed', parseInt(e.target.value))} />
       </div>
 
@@ -78,10 +78,10 @@ export default function RadarSidebar({ state, updateParam, metrics }) {
       <div className="param">
         <div className="param-header">
           <span className="param-name">SNR (dB)</span>
-          <span className="param-value">{state.snr || 20}</span>
+          <span className="param-value">{state.snr ?? 20}</span>
         </div>
         <input type="range" min="0" max="40" step="1"
-          value={state.snr || 20}
+          value={state.snr ?? 20}
           onChange={e => updateParam('snr', parseInt(e.target.value))} />
       </div>
 

@@ -84,11 +84,13 @@ export default class RadarTab extends Component {
 
     // 4. Detection Log Management
     for (const echo of simData.echoes) {
-      this.detectionLog[echo.id] = {
-        ...echo,
-        lastSeen: timestamp,
-        precision: 1 / (simData.effectiveBeamWidth + 1)
-      };
+      if (echo.isDetectable) {
+        this.detectionLog[echo.id] = {
+          ...echo,
+          lastSeen: timestamp,
+          precision: 1 / (simData.effectiveBeamWidth + 1)
+        };
+      }
     }
 
     // Prune log for removed objects or stale detections
@@ -104,13 +106,13 @@ export default class RadarTab extends Component {
       }
 
       // B. Sweep-based pruning: If the beam is CURRENTLY over the target's last known position
-      // but it's not in the current echoes, it means it's now below the detection threshold.
+      // but it's not detectable, it means it's now below the detection threshold.
       let angDiff = Math.abs(entry.angle - simData.beamAngle);
       if (angDiff > 180) angDiff = 360 - angDiff;
       const inBeam = angDiff < (simData.effectiveBeamWidth / 2);
-      const inEchoes = (simData.echoes || []).some(e => e.id === id);
+      const detectableEcho = (simData.echoes || []).find(e => e.id === id && e.isDetectable);
 
-      if (inBeam && !inEchoes) {
+      if (inBeam && !detectableEcho) {
         delete this.detectionLog[key];
         continue;
       }
@@ -179,7 +181,7 @@ export default class RadarTab extends Component {
                 </span></div>
                 <div>Speed: <span style={{ color: '#00ff88' }}>{state.scanSpeed}°/s</span></div>
                 <div style={{ marginTop: 6, color: '#00c4ff', fontFamily: 'Orbitron, monospace', fontSize: 9 }}>EFFECTIVE BEAM</div>
-                <div>Scale ×{((state.beamWidth || 20) / 20).toFixed(2)}: <span style={{ color: '#00ff88', fontWeight: 'bold' }}>
+                <div>Scale ×{((state.beamWidth ?? 20) / 20).toFixed(2)}: <span style={{ color: '#00ff88', fontWeight: 'bold' }}>
                   {radarData?.effectiveBeamWidth?.toFixed(1) ?? '--'}°
                 </span></div>
               </div>
