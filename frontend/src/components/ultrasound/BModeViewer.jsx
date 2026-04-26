@@ -3,7 +3,6 @@ import { BMode_Simulator } from '../../utils/engineOOP';
 
 export default function BModeViewer({ state, regions, probePosRef, updateParam }) {
   const canvasRef = useRef(null);
-  const tgcCanvasRef = useRef(null);
   const [isScanning, setIsScanning] = useState(false);
 
   const scanAngleRef = useRef(-60);
@@ -19,35 +18,6 @@ export default function BModeViewer({ state, regions, probePosRef, updateParam }
     }
   };
 
-  // Draw TGC Curve overlay
-  useEffect(() => {
-    const canvas = tgcCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width;
-    const H = canvas.height;
-
-    ctx.clearRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(0, 196, 255, 0.5)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    // Simulate a TGC curve (low gain at top, high gain at bottom)
-    for (let y = 0; y < H; y++) {
-      const gain = 0.2 + 0.8 * (y / H); // Simple linear TGC
-      const x = gain * W * 0.8;
-      if (y === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    // Draw markers
-    ctx.fillStyle = 'rgba(0, 196, 255, 0.8)';
-    for (let i = 0; i <= 5; i++) {
-      ctx.beginPath();
-      ctx.arc((0.2 + 0.8 * (i / 5)) * W * 0.8, (i / 5) * H, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }, []);
 
   // Ray generation logic (shared with A-Mode, but optimized for drawing)
   useEffect(() => {
@@ -203,20 +173,14 @@ export default function BModeViewer({ state, regions, probePosRef, updateParam }
         </div>
       </div>
 
-      <div className="canvas-wrap" style={{ display: 'flex', background: '#000' }}>
-        <canvas ref={canvasRef} width={400} height={300} style={{ flex: 1 }}></canvas>
-
-        {/* TGC Overlay on the side */}
-        <div style={{ width: '40px', borderLeft: '1px solid var(--border)', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 5, left: 0, width: '100%', textAlign: 'center', fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'Share Tech Mono' }}>TGC</div>
-          <canvas ref={tgcCanvasRef} width={40} height={300} style={{ width: '100%', height: '100%' }}></canvas>
-        </div>
+      <div className="canvas-wrap" style={{ background: '#000' }}>
+        <canvas ref={canvasRef} width={400} height={300} style={{ width: '100%', height: '100%' }}></canvas>
       </div>
 
       {/* Subtle Focal Zone Band Overlay */}
       <div style={{
         position: 'absolute',
-        left: 0, right: 40,
+        left: 0, right: 0,
         top: `${20 + (state.focalDepth / 200) * (300 - 40)}px`,
         height: '20px',
         background: 'rgba(255, 107, 53, 0.05)',

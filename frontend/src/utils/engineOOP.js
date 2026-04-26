@@ -342,7 +342,7 @@ export class AMode_Simulator extends Ultrasound_Simulator {
     const dy = Math.sin(rayAngleRad);
     // Lateral perpendicular direction
     const perpX = -dy;
-    const perpY =  dx;
+    const perpY = dx;
 
     // ── Region lookup helper ────────────────────────────────────────────────
     const findRegion = (px, py) => {
@@ -377,19 +377,19 @@ export class AMode_Simulator extends Ultrasound_Simulator {
 
       // ── Lateral PSF: sample center + ±half-HPBW off-axis positions ─────
       // Beam lateral half-width at this depth (mm), then in normalized coords
-      const lateralHalfMm   = depthMm * Math.tan(hpbwDeg * Math.PI / 360);
+      const lateralHalfMm = depthMm * Math.tan(hpbwDeg * Math.PI / 360);
       const lateralHalfNorm = lateralHalfMm * normScale;
 
-      const foundRegion  = findRegion(px, py);                                    // weight 0.5
+      const foundRegion = findRegion(px, py);                                    // weight 0.5
       const foundRegionL = findRegion(px - lateralHalfNorm * perpX,
-                                      py - lateralHalfNorm * perpY);              // weight 0.25
+        py - lateralHalfNorm * perpY);              // weight 0.25
       const foundRegionR = findRegion(px + lateralHalfNorm * perpX,
-                                      py + lateralHalfNorm * perpY);              // weight 0.25
+        py + lateralHalfNorm * perpY);              // weight 0.25
 
       // Weighted-average impedance and echogenicity across the lateral beam
-      const newZ     = 1540 * (0.5 * foundRegion.rho  + 0.25 * foundRegionL.rho  + 0.25 * foundRegionR.rho);
-      const echoBlend=        0.5 * foundRegion.echo  + 0.25 * foundRegionL.echo + 0.25 * foundRegionR.echo;
-      const attenBlend=       0.5 * foundRegion.atten + 0.25 * foundRegionL.atten+ 0.25 * foundRegionR.atten;
+      const newZ = 1540 * (0.5 * foundRegion.rho + 0.25 * foundRegionL.rho + 0.25 * foundRegionR.rho);
+      const echoBlend = 0.5 * foundRegion.echo + 0.25 * foundRegionL.echo + 0.25 * foundRegionR.echo;
+      const attenBlend = 0.5 * foundRegion.atten + 0.25 * foundRegionL.atten + 0.25 * foundRegionR.atten;
 
       let reflection = 0;
       if (foundRegion.id !== currentRegionId && currentRegionId !== -1) {
@@ -424,13 +424,13 @@ export class AMode_Simulator extends Ultrasound_Simulator {
       pulseShape[0] = 1.0;
     } else {
       const center = (pulseSamples - 1) / 2;
-      const sigma  = pulseSamples / 6;
+      const sigma = pulseSamples / 6;
       for (let k = 0; k < pulseSamples; k++) {
         pulseShape[k] = Math.exp(-0.5 * Math.pow((k - center) / sigma, 2));
       }
     }
 
-    const snrLin   = Math.pow(10, state.snr / 20);
+    const snrLin = Math.pow(10, state.snr / 20);
     const halfPulse = Math.floor(pulseSamples / 2);
 
     for (let i = 0; i < numSamples; i++) {
@@ -450,26 +450,8 @@ export class AMode_Simulator extends Ultrasound_Simulator {
 }
 
 export class BMode_Simulator extends AMode_Simulator {
-  /**
-   * Generates a single scan line with B-mode specific processing (TGC)
-   */
-  generateLine(state, regions, probePos, angle, numSamples = 200, maxDepthMm = 200) {
-    const data = super.generateLine(state, regions, probePos, angle, numSamples, maxDepthMm);
-
-    for (let i = 0; i < numSamples; i++) {
-      const depthMm = (i / numSamples) * maxDepthMm;
-
-      // Apply TGC (Time Gain Compensation)
-      const tgcGain = 1.0 + (depthMm / maxDepthMm) * 5.0;
-      data[i] *= tgcGain;
-
-      // Additional focal boost for B-mode visibility
-      if (Math.abs(depthMm - state.focalDepth) < 10) {
-        data[i] *= 1.25;
-      }
-    }
-    return data;
-  }
+  // Inherits generateLine from AMode_Simulator.
+  // Log compression and focal boost are applied in the viewer rendering layer.
 }
 
 export class Doppler_Simulator extends AMode_Simulator {
