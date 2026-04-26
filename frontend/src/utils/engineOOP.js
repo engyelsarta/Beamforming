@@ -651,7 +651,11 @@ export class Radar_Simulator extends ApplicationMode {
       this.effectiveBeamWidth = userBw;
 
       const actualSpeed = baseSpeed;
+      // 360° Phase Steering: The array electronically steers in a full circle
       this.currentAngle = (this.currentAngle + actualSpeed * dt) % 360;
+
+      // Update inherited array to physically steer the beam via phase shifts
+      this.array.update_parameters({ ...state, steering: this.currentAngle });
 
       // 1. Find all objects in broad beam
       const detectedInBeam = objects.filter(obj =>
@@ -703,6 +707,9 @@ export class Radar_Simulator extends ApplicationMode {
 
       const currentTask = this.focusQueue[this.focusQueueIndex];
       this.currentAngle = currentTask.angle;
+
+      // Update inherited array to physically steer the beam via phase shifts
+      this.array.update_parameters({ ...state, steering: this.currentAngle });
 
       if (this.dwellTimer <= 0) {
         // Resolve sub-targets within the 3° beam at the current lock angle
