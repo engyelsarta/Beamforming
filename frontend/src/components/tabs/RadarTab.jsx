@@ -6,7 +6,7 @@ import { Radar_Simulator } from '../../utils/engineOOP';
 
 export default class RadarTab extends Component {
   static defaultParams = {
-    elements: 16,
+    elements: 7, // Physically consistent with 20° beamwidth
     spacing: 0.5,
     freq: 2.4,
     amplitude: 1.0,
@@ -19,10 +19,7 @@ export default class RadarTab extends Component {
     scanSpeed: 60,
     maxRange: 2000,
     isPaused: false,
-    objects: [
-      { id: 1, angle: 145, distance: 1000, size: 6 },
-      { id: 2, angle: 200, distance: 700, size: 4 },
-    ],
+    objects: [],
   };
 
   constructor(props) {
@@ -67,16 +64,21 @@ export default class RadarTab extends Component {
     // 1. Recompute physics pattern ONLY when params change (for metrics)
     const paramsKey = `${state.elements}|${state.spacing}|${state.freq}|${state.window}|${state.amplitude}|${state.snr}`;
     if (paramsKey !== this.lastParamsKey) {
-      const patternState = { ...state, steering: 0 };
+      const isFocusing = this.sim.phase === 'FOCUSING';
+      const patternState = { 
+        ...state, 
+        steering: 0,
+        elements: isFocusing ? 64 : state.elements 
+      };
       this.sim.array.update_parameters(patternState);
       this.cachedPattern = this.sim.engine.calculate_interference_pattern(patternState);
-      this.lastParamsKey = paramsKey;
+      this.lastParamsKey = paramsKey + (isFocusing ? '_focus' : '');
       this.cachedPhysicsHpbw = parseFloat(this.cachedPattern?.metrics?.hpbw || 20);
     }
 
     // 2. Drive the autonomous simulator
     const effectiveDt = state.isPaused ? 0 : dtSec;
-    const simData = this.sim.tick(effectiveDt, state);
+    const simData = this.sim.tick(effectiveDt, state, this.cachedPhysicsHpbw);
 
     // 3. Update refs for RadarPlot (no re-render)
     this.beamAngleRef.current = simData.beamAngle;
@@ -142,6 +144,7 @@ export default class RadarTab extends Component {
         <RadarSidebar
           state={state}
           updateParam={updateParam}
+          updateParams={this.props.updateParams}
           metrics={radarData?.metrics}
           resetParams={this.props.resetParams}
         />
@@ -171,6 +174,20 @@ export default class RadarTab extends Component {
                   {radarData?.focusStatus || radarData?.phase || 'IDLE'}
                 </span></div>
                 <div>Speed: <span style={{ color: '#00ff88' }}>{state.scanSpeed}°/s</span></div>
+              </div>
+
+              <div style={{ marginBottom: 12, padding: '8px', background: 'rgba(0,196,255,0.05)', border: '1px solid rgba(0,196,255,0.2)' }}>
+                <div style={{ color: '#00c4ff', fontFamily: 'Orbitron, monospace', fontSize: 10, marginBottom: 4 }}>HARDWARE CONFIG</div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'Share Tech Mono, monospace' }}>
+                  Elements: <span style={{ color: '#fff' }}>{radarData?.phase === 'FOCUSING' ? 64 : state.elements}</span>
+                  {radarData?.phase === 'FOCUSING' && <span style={{ color: '#00ff88', marginLeft: 4 }}>(AUTO-BOOST)</span>}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'Share Tech Mono, monospace' }}>
+                  Aperture: <span style={{ color: '#fff' }}>{((radarData?.phase === 'FOCUSING' ? 64 : state.elements) * state.spacing).toFixed(1)} λ</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'Share Tech Mono, monospace' }}>
+                  Phys HPBW: <span style={{ color: '#fff' }}>{radarData?.physicsHpbw}°</span>
+                </div>
               </div>
 
               <div style={{ color: '#00ff88', fontFamily: 'Orbitron, monospace', fontSize: 10, marginBottom: 8 }}>

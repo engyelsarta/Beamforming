@@ -52,7 +52,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [state, activeTab]);
 
-  const updateParam = (key, val) => setState(prev => ({ ...prev, [key]: val }));
+  const updateParam  = (key, val) => setState(prev => ({ ...prev, [key]: val }));
+  const updateParams = (obj)      => setState(prev => ({ ...prev, ...obj }));
 
   const updatePerSourceParam = (index, key, val) => {
     setState(prev => {
@@ -97,6 +98,7 @@ export default function App() {
           state={state}
           data={data}
           updateParam={updateParam}
+          updateParams={updateParams}
           updatePerSourceParam={updatePerSourceParam}
           setWaveform={setWaveform}
           setWindow={setWindow}

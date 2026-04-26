@@ -2,7 +2,7 @@ import React from 'react';
 
 const nextId = (objects) => (objects.length === 0 ? 1 : Math.max(...objects.map(o => o.id)) + 1);
 
-export default function RadarSidebar({ state, updateParam, metrics, resetParams }) {
+export default function RadarSidebar({ state, updateParam, updateParams, metrics, resetParams }) {
   const objects = state.objects || [];
 
   const addObject = () => {
@@ -53,9 +53,17 @@ export default function RadarSidebar({ state, updateParam, metrics, resetParams 
           <span className="param-name">Beam Width</span>
           <span className="param-value">{state.beamWidth ?? 20}<span className="param-unit">°</span></span>
         </div>
-        <input type="range" min="2" max="90" step="1"
+        <input type="range" min="3" max="90" step="1"
           value={state.beamWidth ?? 20}
-          onChange={e => updateParam('beamWidth', parseInt(e.target.value))} />
+          onChange={e => {
+            const val = parseInt(e.target.value);
+            // Physics Link: N = round(147 / BW) for Hamming window
+            const elements = Math.max(2, Math.min(128, Math.round(147 / val)));
+            updateParams({
+              beamWidth: val,
+              elements: elements
+            });
+          }} />
         <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3 }}>
           Narrow = precise · Wide = fast
         </div>

@@ -557,8 +557,8 @@ export class Radar_Simulator extends ApplicationMode {
     this.measuredSizes = {};
     this.recentlyMeasured = new Set();
     this.lastDetectionTime = 0;
-    this.effectiveBeamWidth = 15;
-    this.physicsHpbw = 15;
+    this.effectiveBeamWidth = 20;
+    this.physicsHpbw = 20;
 
     // Bug 1: Focus Queue
     this.focusQueue = []; // Array of { angle, id (if resolved), isBlob }
@@ -566,7 +566,7 @@ export class Radar_Simulator extends ApplicationMode {
     this.confirmedTargets = new Map(); // id -> { angle, distance, size, time }
   }
 
-  tick(dt, state) {
+  tick(dt, state, physicsLimit = 3) {
     const objects = state.objects || [];
     const baseSpeed = state.scanSpeed || 60;
     const maxRange = state.maxRange || 2000;
@@ -576,8 +576,7 @@ export class Radar_Simulator extends ApplicationMode {
       const userBw = state.beamWidth || 15;
       this.effectiveBeamWidth = userBw;
 
-      const speedScale = this.effectiveBeamWidth / 15;
-      const actualSpeed = baseSpeed * speedScale;
+      const actualSpeed = baseSpeed;
       this.currentAngle = (this.currentAngle + actualSpeed * dt) % 360;
 
       // 1. Find all objects in broad beam
@@ -616,7 +615,9 @@ export class Radar_Simulator extends ApplicationMode {
       }
 
     } else if (this.phase === 'FOCUSING') {
-      this.effectiveBeamWidth = 3;
+      // Hardware Reconfiguration: Use high-element count limit (64 elements ~ 2.3 deg)
+      const focusLimit = 147 / 64; 
+      this.effectiveBeamWidth = focusLimit;
 
       if (this.focusQueueIndex >= this.focusQueue.length) {
         // All queued targets processed
@@ -631,8 +632,9 @@ export class Radar_Simulator extends ApplicationMode {
 
       if (this.dwellTimer <= 0) {
         // Resolve sub-targets within the 3° beam at the current lock angle
+        const focusLimit = 147 / 64;
         const subTargets = objects.filter(obj =>
-          this._isObjectInBeam(obj, currentTask.angle, 3, maxRange, snr)
+          this._isObjectInBeam(obj, currentTask.angle, focusLimit, maxRange, snr)
         );
 
         if (currentTask.isBlob && subTargets.length > 1) {
