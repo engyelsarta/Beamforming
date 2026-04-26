@@ -39,7 +39,7 @@ export default function DopplerViewer({ state, probePosRef }) {
       ctx.stroke();
       
       const simulator = new Doppler_Simulator();
-      const dopplerData = simulator.generateDopplerVelocity(state);
+      const dopplerData = simulator.generateDopplerVelocity(state, state.transducerAngle || 270);
       const finalVel = dopplerData.velocity;
       const cosTheta = dopplerData.cosTheta;
       

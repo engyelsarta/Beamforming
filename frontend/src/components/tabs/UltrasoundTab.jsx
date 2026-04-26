@@ -24,6 +24,7 @@ export default class UltrasoundTab extends Component {
     vesselAngle: 15, // degrees
     vesselDepth: 50, // mm
     vesselDiameter: 6, // mm
+    transducerAngle: 270, // degrees (0=right, 90=bottom, 180=left, 270=top)
   };
 
   constructor(props) {
@@ -35,7 +36,7 @@ export default class UltrasoundTab extends Component {
     };
     
     this.probePosRef = createRef();
-    this.probePosRef.current = 0.5;
+    this.probePosRef.current = 270;
   }
 
   setPhantomRegions = (regions) => {
@@ -59,7 +60,7 @@ export default class UltrasoundTab extends Component {
           gridTemplateRows: '1fr 1fr',
           gap: 1, background: 'var(--border)', overflow: 'hidden',
         }}>
-           <PhantomViewer state={effectiveState} setPhantomRegions={this.setPhantomRegions} probePosRef={this.probePosRef} />
+           <PhantomViewer state={effectiveState} setPhantomRegions={this.setPhantomRegions} probePosRef={this.probePosRef} updateParam={updateParam} />
            <BModeViewer state={effectiveState} regions={regions} probePosRef={this.probePosRef} updateParam={updateParam} />
            <AModeViewer state={effectiveState} regions={regions} probePosRef={this.probePosRef} />
            <DopplerViewer state={effectiveState} probePosRef={this.probePosRef} />

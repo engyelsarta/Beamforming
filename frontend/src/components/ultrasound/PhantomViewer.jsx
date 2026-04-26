@@ -1,20 +1,20 @@
 import React, { useRef, useEffect, useState } from 'react';
 
 const INITIAL_PHANTOM = [
-  { id: 1, name: 'Background (Water)', cx: 0.5, cy: 0.5, rx: 0.5, ry: 0.5, angle: 0, c: 1480, rho: 1000, atten: 0.002, echo: 0.05 },
-  { id: 2, name: 'Skull (Shell)', cx: 0.5, cy: 0.5, rx: 0.345, ry: 0.46, angle: 0, c: 3500, rho: 1900, atten: 3.5, echo: 0.9 },
-  { id: 3, name: 'Brain (Interior)', cx: 0.5, cy: 0.5092, rx: 0.3312, ry: 0.437, angle: 0, c: 1540, rho: 1040, atten: 0.5, echo: 0.2 },
-  { id: 4, name: 'Ventricle L', cx: 0.61, cy: 0.5, rx: 0.055, ry: 0.155, angle: -18, c: 1500, rho: 1000, atten: 0.1, echo: 0.05 },
-  { id: 5, name: 'Ventricle R', cx: 0.39, cy: 0.5, rx: 0.08, ry: 0.205, angle: 18, c: 1500, rho: 1000, atten: 0.1, echo: 0.05 },
-  { id: 6, name: 'Lesion A', cx: 0.5, cy: 0.325, rx: 0.105, ry: 0.125, angle: 0, c: 1580, rho: 1060, atten: 0.8, echo: 0.4 },
-  { id: 7, name: 'Lesion B', cx: 0.5, cy: 0.45, rx: 0.023, ry: 0.023, angle: 0, c: 1580, rho: 1060, atten: 0.8, echo: 0.4 },
-  { id: 8, name: 'Lesion C', cx: 0.5, cy: 0.55, rx: 0.023, ry: 0.023, angle: 0, c: 1580, rho: 1060, atten: 0.8, echo: 0.4 },
-  { id: 9, name: 'Calcification 1', cx: 0.46, cy: 0.8025, rx: 0.023, ry: 0.0115, angle: 0, c: 4000, rho: 2000, atten: 4.0, echo: 1.0 },
-  { id: 10, name: 'Calcification 2', cx: 0.5, cy: 0.8025, rx: 0.0115, ry: 0.0115, angle: 0, c: 4000, rho: 2000, atten: 4.0, echo: 1.0 },
-  { id: 11, name: 'Calcification 3', cx: 0.53, cy: 0.8025, rx: 0.0115, ry: 0.023, angle: 0, c: 4000, rho: 2000, atten: 4.0, echo: 1.0 }
+  { id: 1, name: 'Background (Water)', cx: 0.5, cy: 0.5, rx: 0.5, ry: 0.5, angle: 0, rho: 1000, atten: 0.002, echo: 0.05 },
+  { id: 2, name: 'Skull (Shell)', cx: 0.5, cy: 0.5, rx: 0.345, ry: 0.46, angle: 0, rho: 1900, atten: 3.5, echo: 0.9 },
+  { id: 3, name: 'Brain (Interior)', cx: 0.5, cy: 0.5092, rx: 0.3312, ry: 0.437, angle: 0, rho: 1040, atten: 0.5, echo: 0.2 },
+  { id: 4, name: 'Ventricle L', cx: 0.61, cy: 0.5, rx: 0.055, ry: 0.155, angle: -18, rho: 1000, atten: 0.1, echo: 0.05 },
+  { id: 5, name: 'Ventricle R', cx: 0.39, cy: 0.5, rx: 0.08, ry: 0.205, angle: 18, rho: 1000, atten: 0.1, echo: 0.05 },
+  { id: 6, name: 'Lesion A', cx: 0.5, cy: 0.325, rx: 0.105, ry: 0.125, angle: 0, rho: 1060, atten: 0.8, echo: 0.4 },
+  { id: 7, name: 'Lesion B', cx: 0.5, cy: 0.45, rx: 0.023, ry: 0.023, angle: 0, rho: 1060, atten: 0.8, echo: 0.4 },
+  { id: 8, name: 'Lesion C', cx: 0.5, cy: 0.55, rx: 0.023, ry: 0.023, angle: 0, rho: 1060, atten: 0.8, echo: 0.4 },
+  { id: 9, name: 'Calcification 1', cx: 0.46, cy: 0.8025, rx: 0.023, ry: 0.0115, angle: 0, rho: 2000, atten: 4.0, echo: 1.0 },
+  { id: 10, name: 'Calcification 2', cx: 0.5, cy: 0.8025, rx: 0.0115, ry: 0.0115, angle: 0, rho: 2000, atten: 4.0, echo: 1.0 },
+  { id: 11, name: 'Calcification 3', cx: 0.53, cy: 0.8025, rx: 0.0115, ry: 0.023, angle: 0, rho: 2000, atten: 4.0, echo: 1.0 }
 ];
 
-export default function PhantomViewer({ state, setPhantomRegions, probePosRef }) {
+export default function PhantomViewer({ state, setPhantomRegions, probePosRef, updateParam }) {
   const canvasRef = useRef(null);
   const [regions, setRegions] = useState(INITIAL_PHANTOM);
   const [hoveredId, setHoveredId] = useState(null);
@@ -25,7 +25,7 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
     if (setPhantomRegions) setPhantomRegions(regions);
   }, [regions, setPhantomRegions]);
 
-  const [probePos, setProbePos] = useState(0.5); // 0 to 1 along the top edge
+  const probePos = state.transducerAngle ?? 270;
   const isDragging = useRef(false);
 
   useEffect(() => {
@@ -43,6 +43,10 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
     const render = () => {
       const W = canvas.width;
       const H = canvas.height;
+      const ctrX = W / 2;
+      const ctrY = H / 2;
+      const scale = W * 0.8; // Scale everything to leave room for orbital movement
+      
       ctx.clearRect(0, 0, W, H);
       
       // Draw background phantom (darker)
@@ -52,11 +56,11 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
       // Draw regions
       regions.forEach(r => {
         ctx.save();
-        ctx.translate(r.cx * W, r.cy * H);
+        ctx.translate(ctrX + (r.cx - 0.5) * scale, ctrY + (r.cy - 0.5) * scale);
         ctx.rotate(r.angle * Math.PI / 180);
         
         ctx.beginPath();
-        ctx.ellipse(0, 0, r.rx * W, r.ry * H, 0, 0, 2 * Math.PI);
+        ctx.ellipse(0, 0, r.rx * scale, r.ry * scale, 0, 0, 2 * Math.PI);
         
         // Base color based on echogenicity
         const gray = Math.floor(r.echo * 200 + 30);
@@ -76,10 +80,10 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
       });
 
       // Draw vessel
-      const vx = 0.5 * W;
-      const vy = (state.vesselDepth / 200) * H; // mapping 10-150mm to y
+      const vx = ctrX;
+      const vy = ctrY + ((state.vesselDepth / 200) - 0.5) * scale;
       const vAngle = state.vesselAngle * Math.PI / 180;
-      const vRadius = (state.vesselDiameter / 20) * W * 0.1;
+      const vRadius = (state.vesselDiameter / 20) * scale * 0.1;
 
       ctx.save();
       ctx.translate(vx, vy);
@@ -107,18 +111,24 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
       // Draw probe
       const probeW = 40;
       const probeH = 10;
-      const px = probePos * W;
-      const py = 10;
+      const tRad = probePos * Math.PI / 180;
+      const R = 0.48; // Transducer orbital radius
+      const px = ctrX + (R * scale) * Math.cos(tRad);
+      const py = ctrY + (R * scale) * Math.sin(tRad);
       
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(tRad + Math.PI/2);
       ctx.fillStyle = '#00c4ff';
-      ctx.fillRect(px - probeW/2, py - probeH/2, probeW, probeH);
+      ctx.fillRect(-probeW/2, -probeH/2, probeW, probeH);
+      ctx.restore();
 
       // Draw beam ray
-      const angleRad = (state.steering + 90) * Math.PI / 180;
-      const rayLen = W * 1.5;
+      const rayAngleRad = tRad + Math.PI + (state.steering * Math.PI / 180);
+      const rayLen = scale * 0.9;
       ctx.beginPath();
-      ctx.moveTo(px, py + probeH/2);
-      ctx.lineTo(px + rayLen * Math.cos(angleRad), py + probeH/2 + rayLen * Math.sin(angleRad));
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + rayLen * Math.cos(rayAngleRad), py + rayLen * Math.sin(rayAngleRad));
       ctx.strokeStyle = 'rgba(0, 196, 255, 0.5)';
       ctx.setLineDash([5, 5]);
       ctx.lineWidth = 2;
@@ -126,8 +136,9 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
       ctx.setLineDash([]);
       
       // Focal zone indicator
-      const focalY = py + (state.focalDepth / 200) * H;
-      const focalX = px + (focalY - py) / Math.tan(angleRad);
+      const focalDist = (state.focalDepth / 200) * 0.9 * scale;
+      const focalX = px + focalDist * Math.cos(rayAngleRad);
+      const focalY = py + focalDist * Math.sin(rayAngleRad);
       ctx.beginPath();
       ctx.arc(focalX, focalY, 5, 0, Math.PI*2);
       ctx.fillStyle = '#ff6b35';
@@ -151,23 +162,33 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
 
   const handlePointerDown = (e) => {
     const { x, y } = getMousePos(e);
-    // Check if dragging probe
-    if (y < 0.1) {
+    const dx = x - 0.5;
+    const dy = y - 0.5;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    // Check if dragging probe (outside phantom area)
+    if (dist > 0.4) {
       isDragging.current = true;
-      setProbePos(Math.max(0.05, Math.min(0.95, x)));
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const newAngle = (angle + 360) % 360;
+      updateParam('transducerAngle', newAngle);
       return;
     }
     
-    // Check region click
+    // Check region click (need to account for scale for precise clicking)
+    const scale = 0.8;
+    const normX = 0.5 + (x - 0.5) / scale;
+    const normY = 0.5 + (y - 0.5) / scale;
+
     for (let i = regions.length - 1; i >= 0; i--) {
       const r = regions[i];
-      const dx = x - r.cx;
-      const dy = y - r.cy;
+      const rdx = normX - r.cx;
+      const rdy = normY - r.cy;
       // Inverse rotate
       const cosA = Math.cos(-r.angle * Math.PI / 180);
       const sinA = Math.sin(-r.angle * Math.PI / 180);
-      const rx = dx * cosA - dy * sinA;
-      const ry = dx * sinA + dy * cosA;
+      const rx = rdx * cosA - rdy * sinA;
+      const ry = rdx * sinA + rdy * cosA;
       
       if ((rx*rx)/(r.rx*r.rx) + (ry*ry)/(r.ry*r.ry) <= 1) {
         setEditingRegion(r);
@@ -181,20 +202,28 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
     const { x, y } = getMousePos(e);
     
     if (isDragging.current) {
-      setProbePos(Math.max(0.05, Math.min(0.95, x)));
+      const dx = x - 0.5;
+      const dy = y - 0.5;
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const newAngle = (angle + 360) % 360;
+      updateParam('transducerAngle', newAngle);
       return;
     }
 
-    // Hover detection
+    // Hover detection (need to account for scale)
+    const scale = 0.8;
+    const normX = 0.5 + (x - 0.5) / scale;
+    const normY = 0.5 + (y - 0.5) / scale;
+
     let found = null;
     for (let i = regions.length - 1; i >= 0; i--) {
       const r = regions[i];
-      const dx = x - r.cx;
-      const dy = y - r.cy;
+      const rdx = normX - r.cx;
+      const rdy = normY - r.cy;
       const cosA = Math.cos(-r.angle * Math.PI / 180);
       const sinA = Math.sin(-r.angle * Math.PI / 180);
-      const rx = dx * cosA - dy * sinA;
-      const ry = dx * sinA + dy * cosA;
+      const rx = rdx * cosA - rdy * sinA;
+      const ry = rdx * sinA + rdy * cosA;
       
       if ((rx*rx)/(r.rx*r.rx) + (ry*ry)/(r.ry*r.ry) <= 1) {
         found = r.id;
@@ -222,8 +251,8 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
       
       <canvas 
         ref={canvasRef} 
-        width={400} 
-        height={400} 
+        width={600} 
+        height={600} 
         style={{ cursor: isDragging.current ? 'ew-resize' : 'crosshair' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -237,9 +266,8 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
           padding: '8px', fontFamily: 'Share Tech Mono', fontSize: '10px', color: 'var(--text)', pointerEvents: 'none'
         }}>
           <div style={{ color: 'var(--accent)', fontWeight: 'bold', marginBottom: '4px' }}>{hoveredRegion.name}</div>
-          <div>c: {hoveredRegion.c} m/s</div>
           <div>&rho;: {hoveredRegion.rho} kg/m³</div>
-          <div>Z: {(hoveredRegion.c * hoveredRegion.rho / 1e6).toFixed(2)} MRayl</div>
+          <div>Z: {(1540 * hoveredRegion.rho / 1e6).toFixed(2)} MRayl</div>
           <div>Atten: {hoveredRegion.atten} dB/cm</div>
         </div>
       )}
@@ -254,10 +282,6 @@ export default function PhantomViewer({ state, setPhantomRegions, probePosRef })
             <span style={{ cursor: 'pointer', color: '#888' }} onClick={() => setEditingRegion(null)}>✖</span>
           </div>
           
-          <div style={{ marginBottom: '4px' }}>Speed of Sound (m/s)</div>
-          <input type="range" className="orange" min="1000" max="4500" step="10" value={editingRegion.c} onChange={(e) => updateEditingRegion('c', e.target.value)} />
-          <div style={{ textAlign: 'right', marginBottom: '8px', color: 'var(--accent3)' }}>{editingRegion.c}</div>
-
           <div style={{ marginBottom: '4px' }}>Density (kg/m³)</div>
           <input type="range" className="orange" min="900" max="2500" step="10" value={editingRegion.rho} onChange={(e) => updateEditingRegion('rho', e.target.value)} />
           <div style={{ textAlign: 'right', marginBottom: '8px', color: 'var(--accent3)' }}>{editingRegion.rho}</div>

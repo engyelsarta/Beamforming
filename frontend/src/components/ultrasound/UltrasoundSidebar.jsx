@@ -43,6 +43,14 @@ export default function UltrasoundSidebar({ state, updateParam }) {
         </div>
         <input type="range" min="-60" max="60" step="1" value={state.steering} onInput={(e) => updateParam('steering', parseFloat(e.target.value))} />
       </div>
+      
+      <div className="param">
+        <div className="param-header">
+          <span className="param-name">Transducer Angle</span>
+          <span className="param-value">{state.transducerAngle}<span className="param-unit">°</span></span>
+        </div>
+        <input type="range" min="0" max="360" step="1" value={state.transducerAngle} onInput={(e) => updateParam('transducerAngle', parseFloat(e.target.value))} />
+      </div>
 
       <div className="param">
         <div className="param-header">

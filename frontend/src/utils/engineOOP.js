@@ -304,10 +304,16 @@ export class AMode_Simulator extends Ultrasound_Simulator {
   /**
    * Generates a single scan line (A-mode signal)
    */
-  generateLine(state, regions, probePos, angle, numSamples = 600, maxDepthMm = 200) {
-    const angleRad = (angle + 90) * Math.PI / 180;
-    const dx = Math.cos(angleRad);
-    const dy = Math.sin(angleRad);
+  generateLine(state, regions, transducerAngle, steeringAngle, numSamples = 600, maxDepthMm = 200) {
+    const tRad = transducerAngle * Math.PI / 180;
+    const R = 0.48; // Transducer orbital radius
+    const ox = 0.5 + R * Math.cos(tRad);
+    const oy = 0.5 + R * Math.sin(tRad);
+
+    // Beam direction points towards the center (tRad + 180) + steering
+    const rayAngleRad = tRad + Math.PI + (steeringAngle * Math.PI / 180);
+    const dx = Math.cos(rayAngleRad);
+    const dy = Math.sin(rayAngleRad);
 
     const data = new Float32Array(numSamples);
 
@@ -319,8 +325,9 @@ export class AMode_Simulator extends Ultrasound_Simulator {
       const depthMm = (i / numSamples) * maxDepthMm;
       const normalizedDist = depthMm / maxDepthMm;
 
-      const px = probePos + normalizedDist * dx;
-      const py = 0.05 + normalizedDist * dy;
+      // Map depth to phantom coordinates (scaling factor 0.9 to cover the circle diameter)
+      const px = ox + (normalizedDist * 0.9) * dx;
+      const py = oy + (normalizedDist * 0.9) * dy;
 
       let foundRegion = regions[0];
       for (let j = regions.length - 1; j > 0; j--) {
@@ -338,7 +345,7 @@ export class AMode_Simulator extends Ultrasound_Simulator {
         }
       }
 
-      const newZ = foundRegion.c * foundRegion.rho;
+      const newZ = 1540 * foundRegion.rho;
       let reflection = 0;
 
       if (foundRegion.id !== currentRegionId && currentRegionId !== -1) {
@@ -406,13 +413,15 @@ export class Doppler_Simulator extends AMode_Simulator {
    * Generates a Doppler velocity sample simulating spectral PW Doppler.
    * Conceptually extends A-Mode as PW Doppler operates along a single gated A-line.
    */
-  generateDopplerVelocity(state) {
-    const st = state.steering * Math.PI / 180;
+  generateDopplerVelocity(state, transducerAngle) {
+    const tRad = transducerAngle * Math.PI / 180;
+    const steeringRad = state.steering * Math.PI / 180;
+    // Absolute beam direction pointing inwards
+    const rayAngleRad = tRad + Math.PI + steeringRad;
     const va = state.vesselAngle * Math.PI / 180;
 
-    // Beam vector: [-sin(st), cos(st)] (st=0 is straight down +Y)
-    // Vessel flow vector: [cos(va), sin(va)] (va=0 is horizontal +X)
-    const cosTheta = -Math.sin(st) * Math.cos(va) + Math.cos(st) * Math.sin(va);
+    // Dot product between beam vector and vessel flow vector
+    const cosTheta = Math.cos(rayAngleRad) * Math.cos(va) + Math.sin(rayAngleRad) * Math.sin(va);
 
     // Always measure velocity for simulation visibility (ignoring spatial gate)
     let measuredVel = state.bloodVelocity * cosTheta;
