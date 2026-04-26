@@ -79,7 +79,7 @@ export class PhasedArray {
         const tau = -(src.x * Math.sin(thetaSteer) + src.y * Math.cos(thetaSteer)) / c;
         // Phase applied is based on the specific element's frequency, avoiding beam squint
         const psi = 2 * Math.PI * src.freq * tau;
-        
+
         re += Math.cos(psi);
         im += Math.sin(psi);
       }
@@ -211,7 +211,7 @@ export class BeamformerEngine {
     // 2D FIELD map for visualizer
     const GS = 120;
     const field = [];
-    
+
     // Determine bounds based on array size to cover the full hemisphere
     const arrayCenterX = (N - 1) * params.spacing / 2;
     // Ensure we can see a wide lateral range and the full beam
@@ -233,26 +233,26 @@ export class BeamformerEngine {
           // Physical distance from element to pixel
           const elemX = src.x - arrayCenterX;
           const elemY = src.y;
-          
+
           const dx = X - elemX;
           const dy = Y - elemY;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          
+
           const k = 2 * Math.PI * (src.freq / 2.4);
-          
+
           // Phase delay = -k * dist
           const kd = k * dist;
           const cosKd = Math.cos(kd);
           const sinKd = Math.sin(kd);
-          
+
           // Apply near-field falloff that doesn't over-suppress near the source
           const falloff = 1.0 / (1.0 + dist * 0.2);
-          
+
           // Real part of the instantaneous wavefield:
           // Re{ W * exp(-j * kd) } = re_w * cos(kd) + im_w * sin(kd)
           re_inst += src.amplitude * (src.re_weight * cosKd + src.im_weight * sinKd) * falloff;
         }
-        
+
         // Show constructive crests (positive ripples) to visualize circular wavefronts
         let v = Math.max(0, re_inst);
         // Nonlinear mapping for perceptual uniformity and fringe visibility
@@ -616,7 +616,7 @@ export class Radar_Simulator extends ApplicationMode {
 
     } else if (this.phase === 'FOCUSING') {
       // Hardware Reconfiguration: Use high-element count limit (64 elements ~ 2.3 deg)
-      const focusLimit = 147 / 64; 
+      const focusLimit = 147 / 64;
       this.effectiveBeamWidth = focusLimit;
 
       if (this.focusQueueIndex >= this.focusQueue.length) {
@@ -658,12 +658,47 @@ export class Radar_Simulator extends ApplicationMode {
       } else {
         this.dwellTimer -= dt;
         if (this.dwellTimer <= 0) {
-          // Dwell complete
+          // Dwell complete - estimate size from PHYSICS, not ground truth
           const target = objects.find(o => o.id === this.targetId);
+
           if (target) {
-            this.measuredSizes[target.id] = target.size;
-            this.confirmedTargets.set(target.id, { ...target, time: Date.now() });
+            // Get the measured echo for this target at the focused beam angle
+            const echoData = this._generateRadarData(state, objects, maxRange);
+            const echo = echoData.echoes.find(e => e.id === this.targetId);
+
+            let estimatedSize;
+
+            if (echo) {
+              // --- RCS Inversion (Radar Equation) ---
+              // Signal model: Pr = (size/5)² / range⁴
+              // Invert:       size = 5 × √(Pr × range⁴)
+              // We read Pr from the measured echo strength (dB → linear).
+              // We know range from our tracking data.
+              const rangeRef = target.distance / 100;
+              const range4 = Math.pow(Math.max(0.1, rangeRef), 4);
+              const signalPower = Math.pow(10, echo.strength / 10);
+              const rcsEstimate = 5.0 * Math.sqrt(signalPower * range4);
+
+              // --- SNR-based measurement noise ---
+              // Real signal measurements fluctuate due to receiver noise.
+              // Uncertainty in Pr ≈ 1/√SNR_linear → uncertainty in size ≈ 1/(2√SNR_linear)
+              const snrLinear = Math.pow(10, snr / 10);
+              const relUncertainty = 1 / (2 * Math.sqrt(snrLinear));
+              const noiseFactor = 1 + (Math.random() * 2 - 1) * relUncertainty;
+
+              estimatedSize = rcsEstimate * noiseFactor;
+            } else {
+              // Target not in echo: beam footprint is an upper bound
+              const focusBeamHalfRad = (147 / 64 / 2) * (Math.PI / 180);
+              estimatedSize = 2 * target.distance * Math.tan(focusBeamHalfRad);
+            }
+
+            estimatedSize = Math.max(1, parseFloat(estimatedSize.toFixed(1)));
+            this.measuredSizes[target.id] = estimatedSize;
+            this.confirmedTargets.set(target.id, { ...target, measuredSize: estimatedSize, time: Date.now() });
           }
+
+          // Always advance — never lock
           this.focusQueueIndex++;
           this.targetId = null;
         }
@@ -823,4 +858,3 @@ export class Radar_Simulator extends ApplicationMode {
     };
   }
 }
-
