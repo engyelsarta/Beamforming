@@ -12,7 +12,7 @@ export default class UltrasoundTab extends Component {
     elements: 128,
     spacing: 0.15, // mm (approx lambda/2 for 5MHz)
     steering: 0,
-    scanLinesPerFrame: 1, // Number of scan lines generated per animation frame
+    scanLinesPerFrame: 60, // Number of scan lines generated per animation frame
     focalDepth: 60, // mm
     pulseLength: 2, // cycles
     snr: 40, // dB
