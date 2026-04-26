@@ -463,10 +463,34 @@ export class FiveG_Simulator extends ApplicationMode {
     ];
 
     const towerParams = state.towerParams || {
-      1: { elements: state.elements, spacing: state.spacing, freq: state.freq },
-      2: { elements: state.elements, spacing: state.spacing, freq: state.freq },
-      3: { elements: state.elements, spacing: state.spacing, freq: state.freq },
+      1: { elements: state.elements, power: state.power || 40, freq: state.freq },
+      2: { elements: state.elements, power: state.power || 40, freq: state.freq },
+      3: { elements: state.elements, power: state.power || 40, freq: state.freq },
     };
+
+    // ── Step 1: Pre-calculate tower coverage and assign users to the BEST tower ──
+    const userAssignments = new Map(); // userId -> towerId
+    users.forEach(u => {
+      let bestTowerId = -1;
+      let maxScore = -1;
+
+      towerPositions.forEach(tpPos => {
+        const tp = towerParams[tpPos.id] || { elements: 64, power: 40, freq: 28 };
+        const dist = Math.sqrt((u.x - tpPos.x) ** 2 + (u.y - tpPos.y) ** 2);
+        const ir = Math.round(BASE_RADIUS * (BASE_FREQ / (tp.freq || BASE_FREQ)));
+        
+        // Only consider towers where the user is within the influence radius
+        if (dist < ir * 1.3) {
+          // Signal Score ∝ sqrt(P * N) * (1 - d/R)^2
+          const score = Math.sqrt(tp.power * tp.elements) * Math.pow(Math.max(0, 1 - dist / (ir * 1.3)), 2);
+          if (score > maxScore) {
+            maxScore = score;
+            bestTowerId = tpPos.id;
+          }
+        }
+      });
+      if (bestTowerId !== -1) userAssignments.set(u.id, bestTowerId);
+    });
 
     const towerData = towerPositions.map(towerPos => {
       let tower = this.towers.find(t => t.id === towerPos.id);
@@ -479,53 +503,48 @@ export class FiveG_Simulator extends ApplicationMode {
         tower.y = towerPos.y;
       }
 
-      const tp = towerParams[tower.id] || { elements: 64, spacing: 0.5, freq: 28 };
+      const tp = towerParams[tower.id] || { elements: 64, power: 40, freq: 28 };
       const numElements = tp.elements || 64;
-      const spacing = tp.spacing || 0.5;
+      const power = tp.power || 40;
+      const spacing = 0.5;
 
-      // Higher frequency → shorter coverage radius (inverse relationship)
       const towerFreq = tp.freq || BASE_FREQ;
       const influenceRadius = Math.round(BASE_RADIUS * (BASE_FREQ / towerFreq));
 
-      // ── Step 1: Distance gate — candidates within coverage radius ──────────
-      const usersInRange = users.filter(u => {
-        const dist = Math.sqrt((u.x - tower.x) ** 2 + (u.y - tower.y) ** 2);
-        return dist < influenceRadius;
-      });
+      // ── Step 2: Use pre-calculated assignments for this tower ──────────────
+      const usersInRange = users.filter(u => userAssignments.get(u.id) === tower.id);
 
-      // ── Step 4: Coverage Gate (Network Access) — MU-MIMO Support ─────────
+      // ── Step 3: Beamforming and Power allocation ──────────────────────────
       let steeringAngles = [0];
       let powerFactor = 1.0;
-      let amp = state.amplitude || 1.0;
 
       if (usersInRange.length > 0) {
         steeringAngles = usersInRange.map(u => {
-          // Angle from Y-axis (normal to the array along X-axis)
-          // atan2(dx, dy) gives angle from Y-axis in canvas coords
           const angleRad = Math.atan2(u.x - tower.x, u.y - tower.y);
           return angleRad * 180 / Math.PI;
         });
         powerFactor = 1.0 / usersInRange.length;
-      } else {
-        amp *= 0.3; // idle power
       }
+
+      let towerAmp = Math.sqrt(power / numElements);
+      if (usersInRange.length === 0) towerAmp *= 0.3; // idle power
 
       const towerState = {
         ...state,
         freq: tp.freq,
         spacing: spacing,
         steering: steeringAngles,
-        amplitude: amp,
+        amplitude: towerAmp,
+        power: power,
         elements: numElements
       };
 
       tower.array.update_parameters(towerState, perSourceParams);
       const pattern = tower.engine.calculate_interference_pattern(towerState);
 
-      // connectedUsers list for visualization
       const connectedUsers = usersInRange.map(u => ({
         ...u,
-        beamGain: 1.0, // Each user gets their own focused beam in MU-MIMO
+        beamGain: 1.0,
         powerFactor: powerFactor
       }));
 

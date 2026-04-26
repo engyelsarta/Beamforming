@@ -187,11 +187,13 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
             const softEdge = dist <= ir ? 1.0 : 1.0 - (dist - ir) / (irOuter - ir);
             // ── Signal Strength Model ────────────────────────────────────────
             // S ∝ sqrt(N / N_max) × (1 - d/R)² × softEdge × beamGain
-            const arrayGain = Math.sqrt(towerN / 128);
+            const amplitude = tower.state?.amplitude || 1.0;
             const pathLoss = Math.pow(Math.max(0, 1 - dist / irOuter), 2);
             const beamGain = connectedData.beamGain || 1.0;
             const powerFactor = connectedData.powerFactor || 1.0;
-            const strength = Math.min(1, arrayGain * pathLoss * softEdge * beamGain * powerFactor);
+            // Coherent gain is N * amplitude. We scale this for visual intensity.
+            const totalGain = (amplitude * towerN) / 60; 
+            const strength = Math.min(1, totalGain * pathLoss * softEdge * beamGain * powerFactor);
 
             // ── Color: HSL gradient blue(1) → green(0.6) → orange(0.3) → red(0) ──
             const hue = Math.round(strength * 240);
@@ -360,7 +362,8 @@ export default function FiveGNetworkMap({ state, data, updateParam }) {
                     : Math.round(t.state.steering) + '°'}
                 </span>
                 <span>Elements:</span> <span style={{ color: '#fff' }}>{t.state.elements}</span>
-                <span>HPBW:</span> <span style={{ color: '#fff' }}>{analyticalHPBW_deg(t.state.elements, t.state.spacing).toFixed(2)}°</span>
+                <span>Power:</span> <span style={{ color: '#fff' }}>{t.state.power} W</span>
+                <span>HPBW:</span> <span style={{ color: '#fff' }}>{analyticalHPBW_deg(t.state.elements, 0.5).toFixed(2)}°</span>
                 <span>Freq:</span> <span style={{ color: '#fff' }}>{t.state.freq?.toFixed(1)} GHz</span>
                 <span>Radius:</span> <span style={{ color: 'var(--accent2, #00c4ff)' }}>{t.influenceRadius} px</span>
               </div>

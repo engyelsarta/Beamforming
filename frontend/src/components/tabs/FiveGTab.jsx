@@ -21,9 +21,9 @@ export default class FiveGTab extends BaseTab {
       { id: 2, x: 600, y: 400, color: 'hsl(200, 80%, 55%)' },
     ],
     towerParams: {
-      1: { elements: 64, spacing: 0.5, freq: 28.0 },
-      2: { elements: 64, spacing: 0.5, freq: 28.0 },
-      3: { elements: 64, spacing: 0.5, freq: 28.0 },
+      1: { elements: 64, power: 40, freq: 28.0 },
+      2: { elements: 64, power: 40, freq: 28.0 },
+      3: { elements: 64, power: 40, freq: 28.0 },
     },
     towers: [
       { id: 1, x: 300, y: 250 },

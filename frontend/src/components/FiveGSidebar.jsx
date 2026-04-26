@@ -2,9 +2,9 @@ import React from 'react';
 
 export default function FiveGSidebar({ state, updateParam, resetParams }) {
   const towerParams = state.towerParams || {
-    1: { elements: 64, spacing: 0.5, freq: 28.0 },
-    2: { elements: 64, spacing: 0.5, freq: 28.0 },
-    3: { elements: 64, spacing: 0.5, freq: 28.0 },
+    1: { elements: 64, power: 40, freq: 28.0 },
+    2: { elements: 64, power: 40, freq: 28.0 },
+    3: { elements: 64, power: 40, freq: 28.0 },
   };
 
   const updateTowerParam = (id, key, val) => {
@@ -30,10 +30,10 @@ export default function FiveGSidebar({ state, updateParam, resetParams }) {
 
           <div className="param">
             <div className="param-header">
-              <span className="param-name">D/A Spacing</span>
-              <span className="param-value">{towerParams[id].spacing.toFixed(2)}<span className="param-unit">λ</span></span>
+              <span className="param-name">Transmit Power</span>
+              <span className="param-value">{towerParams[id].power.toFixed(0)}<span className="param-unit">W</span></span>
             </div>
-            <input type="range" className="blue" min="0.1" max="2.0" step="0.01" value={towerParams[id].spacing} onInput={(e) => updateTowerParam(id, 'spacing', parseFloat(e.target.value))} />
+            <input type="range" className="blue" min="1" max="100" step="1" value={towerParams[id].power} onInput={(e) => updateTowerParam(id, 'power', parseFloat(e.target.value))} />
           </div>
 
           <div className="param" style={{ marginBottom: 0 }}>
