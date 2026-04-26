@@ -302,34 +302,50 @@ export class Ultrasound_Simulator extends ApplicationMode {
 
 export class AMode_Simulator extends Ultrasound_Simulator {
   /**
-   * Generates a single scan line (A-mode signal)
+   * Generates a single scan line (A-mode signal).
+   *
+   * Elements & Spacing physics (inherited from PhasedArray):
+   *   - HPBW (deg) = K_window / (N × d/λ)  → lateral PSF width at each depth
+   *   - More elements  → narrower HPBW → sharper lateral boundaries
+   *   - Spacing > λ/2  → grating lobes → off-axis clutter
    */
   generateLine(state, regions, transducerAngle, steeringAngle, numSamples = 600, maxDepthMm = 200) {
-    const tRad = transducerAngle * Math.PI / 180;
-    const R = 0.48; // Transducer orbital radius
-    const ox = 0.5 + R * Math.cos(tRad);
-    const oy = 0.5 + R * Math.sin(tRad);
+    // ── Inherited phased-array physics ─────────────────────────────────────
+    // Configure the inherited PhasedArray so elements & spacing are live.
+    this.array.update_parameters({ ...state, steering: steeringAngle });
 
-    // Beam direction points towards the center (tRad + 180) + steering
+    // Acoustic wavelength in tissue (mm)
+    const lambdaMm = 1.54 / Math.max(0.1, state.freq);
+    // Element spacing in units of λ
+    const spacingLambda = state.spacing / lambdaMm;
+    // Total aperture in λ  (N × d/λ)
+    const apertureLambda = state.elements * spacingLambda;
+    // Window broadening constant K (rectangular→50.8°, Hamming→76.2°)
+    const windowK = { rectangular: 50.8, hamming: 76.2, hanning: 72.2, blackman: 84.2 }[state.window] ?? 76.2;
+    // Lateral HPBW in degrees — bounded to [1°, 90°]
+    const hpbwDeg = Math.min(90, Math.max(1, windowK / Math.max(0.1, apertureLambda)));
+
+    // Grating-lobe clutter level: increases when spacing > λ/2
+    // At exactly λ/2 → 0; at λ → full clutter (capped at 0.4)
+    const gratingLobeLevel = spacingLambda > 0.5
+      ? Math.min(0.4, (spacingLambda - 0.5) * 0.8)
+      : 0;
+
+    // ── Ray geometry ───────────────────────────────────────────────────────
+    const tRad = transducerAngle * Math.PI / 180;
+    const orbitalR = 0.48;
+    const ox = 0.5 + orbitalR * Math.cos(tRad);
+    const oy = 0.5 + orbitalR * Math.sin(tRad);
+
     const rayAngleRad = tRad + Math.PI + (steeringAngle * Math.PI / 180);
     const dx = Math.cos(rayAngleRad);
     const dy = Math.sin(rayAngleRad);
+    // Lateral perpendicular direction
+    const perpX = -dy;
+    const perpY =  dx;
 
-    const data = new Float32Array(numSamples);
-
-    let currentRegionId = -1;
-    let currentZ = 1.5e6; // Default impedance (water)
-    let currentSignal = 1.0;
-
-    for (let i = 0; i < numSamples; i++) {
-      const depthMm = (i / numSamples) * maxDepthMm;
-      const normalizedDist = depthMm / maxDepthMm;
-
-      // Map depth to phantom coordinates (scaling factor 0.9 to cover the circle diameter)
-      const px = ox + (normalizedDist * 0.9) * dx;
-      const py = oy + (normalizedDist * 0.9) * dy;
-
-      let foundRegion = regions[0];
+    // ── Region lookup helper ────────────────────────────────────────────────
+    const findRegion = (px, py) => {
       for (let j = regions.length - 1; j > 0; j--) {
         const r = regions[j];
         const rx_p = px - r.cx;
@@ -338,48 +354,96 @@ export class AMode_Simulator extends Ultrasound_Simulator {
         const sinA = Math.sin(-r.angle * Math.PI / 180);
         const locX = rx_p * cosA - ry_p * sinA;
         const locY = rx_p * sinA + ry_p * cosA;
-
-        if ((locX * locX) / (r.rx * r.rx) + (locY * locY) / (r.ry * r.ry) <= 1) {
-          foundRegion = r;
-          break;
-        }
+        if ((locX * locX) / (r.rx * r.rx) + (locY * locY) / (r.ry * r.ry) <= 1) return r;
       }
+      return regions[0];
+    };
 
-      const newZ = 1540 * foundRegion.rho;
+    const data = new Float32Array(numSamples);
+    const rawSignal = new Float32Array(numSamples);
+
+    let currentRegionId = -1;
+    let currentZ = 1.5e6; // Default impedance (water)
+    let currentSignal = 1.0;
+    // normalizedDepthScale: 0.9 normalized units = maxDepthMm mm
+    const normScale = 0.9 / maxDepthMm; // 1 mm → normScale normalized units
+
+    for (let i = 0; i < numSamples; i++) {
+      const depthMm = (i / numSamples) * maxDepthMm;
+      const normalizedDist = depthMm / maxDepthMm;
+
+      const px = ox + (normalizedDist * 0.9) * dx;
+      const py = oy + (normalizedDist * 0.9) * dy;
+
+      // ── Lateral PSF: sample center + ±half-HPBW off-axis positions ─────
+      // Beam lateral half-width at this depth (mm), then in normalized coords
+      const lateralHalfMm   = depthMm * Math.tan(hpbwDeg * Math.PI / 360);
+      const lateralHalfNorm = lateralHalfMm * normScale;
+
+      const foundRegion  = findRegion(px, py);                                    // weight 0.5
+      const foundRegionL = findRegion(px - lateralHalfNorm * perpX,
+                                      py - lateralHalfNorm * perpY);              // weight 0.25
+      const foundRegionR = findRegion(px + lateralHalfNorm * perpX,
+                                      py + lateralHalfNorm * perpY);              // weight 0.25
+
+      // Weighted-average impedance and echogenicity across the lateral beam
+      const newZ     = 1540 * (0.5 * foundRegion.rho  + 0.25 * foundRegionL.rho  + 0.25 * foundRegionR.rho);
+      const echoBlend=        0.5 * foundRegion.echo  + 0.25 * foundRegionL.echo + 0.25 * foundRegionR.echo;
+      const attenBlend=       0.5 * foundRegion.atten + 0.25 * foundRegionL.atten+ 0.25 * foundRegionR.atten;
+
       let reflection = 0;
-
       if (foundRegion.id !== currentRegionId && currentRegionId !== -1) {
-        const R = Math.abs((newZ - currentZ) / (newZ + currentZ));
-        reflection = R * currentSignal;
-        currentSignal *= (1 - R * R);
+        const Rcoeff = Math.abs((newZ - currentZ) / (newZ + currentZ));
+        reflection = Rcoeff * currentSignal;
+        currentSignal *= (1 - Rcoeff * Rcoeff);
       }
-
       currentRegionId = foundRegion.id;
       currentZ = newZ;
 
-      // Cumulative attenuation
-      // We use a visual scale factor so high attenuation doesn't instantly turn the image pitch black
-      const alpha = foundRegion.atten;
+      // Cumulative attenuation (frequency-dependent)
       const stepCm = (maxDepthMm / numSamples) / 10;
-      const visualAlphaScale = 0.3; // Calibrated so changes are visible but not destructive
-      const lossDbStep = alpha * state.freq * stepCm * visualAlphaScale;
+      const lossDbStep = attenBlend * state.freq * stepCm * 0.3;
       currentSignal *= Math.pow(10, -lossDbStep / 20);
 
-      // Echogenicity directly scales the scatter amplitude
-      // Using Math.random() for speckle pattern
-      const scatterAmplitude = (Math.random() * 0.1) * foundRegion.echo;
-      const scatter = scatterAmplitude * currentSignal;
+      // Scatter (speckle) with lateral-blended echogenicity
+      const scatter = (Math.random() * 0.1) * echoBlend * currentSignal;
 
-      const snrLin = Math.pow(10, state.snr / 20);
-      const noise = (Math.random() * 2 - 1) / snrLin;
+      // Grating-lobe clutter: off-axis energy that leaks in when spacing > λ/2
+      const gratingClutter = gratingLobeLevel * (Math.random() * 0.15) * currentSignal;
 
-      // Make reflection pop more (specular reflection is usually much stronger than scatter)
-      data[i] = (reflection * 3.0) + scatter + Math.abs(noise) * 0.2;
+      rawSignal[i] = (reflection * 3.0) + scatter + gratingClutter;
+    }
 
-      // Focal zone highlight
-      if (Math.abs(depthMm - state.focalDepth) < 10) {
-        data[i] *= 1.2;
+    // ── Pulse-length convolution (axial resolution) ─────────────────────────
+    // SPL (mm) = c × (cycles / freq)  →  pulseSamples
+    const splMm = 1.54 * (state.pulseLength / Math.max(0.1, state.freq));
+    const pulseSamples = Math.max(1, Math.round((splMm / maxDepthMm) * numSamples));
+
+    const pulseShape = new Float32Array(pulseSamples);
+    if (pulseSamples <= 1) {
+      pulseShape[0] = 1.0;
+    } else {
+      const center = (pulseSamples - 1) / 2;
+      const sigma  = pulseSamples / 6;
+      for (let k = 0; k < pulseSamples; k++) {
+        pulseShape[k] = Math.exp(-0.5 * Math.pow((k - center) / sigma, 2));
       }
+    }
+
+    const snrLin   = Math.pow(10, state.snr / 20);
+    const halfPulse = Math.floor(pulseSamples / 2);
+
+    for (let i = 0; i < numSamples; i++) {
+      let convVal = 0;
+      for (let k = 0; k < pulseSamples; k++) {
+        const idx = i - halfPulse + k;
+        if (idx >= 0 && idx < numSamples) convVal += rawSignal[idx] * pulseShape[k];
+      }
+      const noise = (Math.random() * 2 - 1) / snrLin;
+      data[i] = convVal + Math.abs(noise) * 0.2;
+
+      const depthMm = (i / numSamples) * maxDepthMm;
+      if (Math.abs(depthMm - state.focalDepth) < 10) data[i] *= 1.2;
     }
     return data;
   }
@@ -487,7 +551,7 @@ export class FiveG_Simulator extends ApplicationMode {
         const tp = towerParams[tpPos.id] || { elements: 64, power: 40, freq: 28 };
         const dist = Math.sqrt((u.x - tpPos.x) ** 2 + (u.y - tpPos.y) ** 2);
         const ir = Math.round(BASE_RADIUS * (BASE_FREQ / (tp.freq || BASE_FREQ)));
-        
+
         // Only consider towers where the user is within the influence radius
         if (dist < ir * 1.3) {
           // Signal Score ∝ sqrt(P * N) * (1 - d/R)^2

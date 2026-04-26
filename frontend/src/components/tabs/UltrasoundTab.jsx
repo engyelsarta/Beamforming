@@ -44,7 +44,7 @@ export default class UltrasoundTab extends Component {
   };
 
   render() {
-    const { state, updateParam, isVisible } = this.props;
+    const { state, updateParam, updateParams, resetParams, isVisible } = this.props;
     const { regions } = this.state;
 
     // Use default params if state is missing them (first render before App merges them)
@@ -52,7 +52,13 @@ export default class UltrasoundTab extends Component {
 
     return (
       <div className="main" style={{ display: isVisible ? 'flex' : 'none' }}>
-        <UltrasoundSidebar state={effectiveState} updateParam={updateParam} />
+        <UltrasoundSidebar
+          state={effectiveState}
+          updateParam={updateParam}
+          updateParams={updateParams}
+          resetParams={resetParams}
+        />
+
 
         <div style={{
           flex: 1, display: 'grid',
