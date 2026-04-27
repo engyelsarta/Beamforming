@@ -1,18 +1,35 @@
-# React + Vite
+# Beamforming Simulator - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The frontend of the Beamforming Simulator suite, built with React and Vite. It features a high-performance physics engine for real-time wave simulation.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Multi-Tab Simulation**: Toggle between Beamforming, 5G, Ultrasound, and Radar modes.
+- **Native Physics Engine**: Custom-built `engineOOP.js` for efficient wave propagation calculations.
+- **Interactive Map**: Drag-and-drop 5G towers and users for real-time signal analysis.
+- **Advanced Visualizations**:
+  - Polar Plots
+  - Radar Scanning
+  - Signal History
+  - Heatmaps
 
-## React Compiler
+## Project Structure
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- `src/components/`: UI components and specialized plot components (Polar, Radar, Cartesian).
+- `src/utils/engineOOP.js`: The core object-oriented physics engine.
+- `src/tabs/`: Tab-specific layout and logic.
 
-Note: This will impact Vite dev & build performances.
+## Setup
 
-## Expanding the ESLint configuration
+```bash
+npm install
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Physics Engine Details
+
+The engine (`engineOOP.js`) implements:
+- Phased array signal modeling.
+- Array gain calculations.
+- Path loss models for 5G (frequency-dependent).
+- Radar cross-section and Doppler shift simulations.

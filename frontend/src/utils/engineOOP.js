@@ -450,8 +450,26 @@ export class AMode_Simulator extends Ultrasound_Simulator {
 }
 
 export class BMode_Simulator extends AMode_Simulator {
-  // Inherits generateLine from AMode_Simulator.
-  // Log compression and focal boost are applied in the viewer rendering layer.
+  /**
+   * Generates a single scan line with B-mode specific processing (TGC)
+   */
+  generateLine(state, regions, probePos, angle, numSamples = 200, maxDepthMm = 200) {
+    const data = super.generateLine(state, regions, probePos, angle, numSamples, maxDepthMm);
+
+    for (let i = 0; i < numSamples; i++) {
+      const depthMm = (i / numSamples) * maxDepthMm;
+
+      // Apply TGC (Time Gain Compensation)
+      const tgcGain = 1.0 + (depthMm / maxDepthMm) * 5.0;
+      data[i] *= tgcGain;
+
+      // Additional focal boost for B-mode visibility
+      if (Math.abs(depthMm - state.focalDepth) < 10) {
+        data[i] *= 1.25;
+      }
+    }
+    return data;
+  }
 }
 
 export class Doppler_Simulator extends AMode_Simulator {
@@ -580,7 +598,7 @@ export class FiveG_Simulator extends ApplicationMode {
         });
         powerFactor = 1.0 / usersInRange.length;
       }
-
+      // MIMO and idle power
       let towerAmp = Math.sqrt(power / numElements);
       if (usersInRange.length === 0) towerAmp *= 0.3; // idle power
 
@@ -651,11 +669,7 @@ export class Radar_Simulator extends ApplicationMode {
       this.effectiveBeamWidth = userBw;
 
       const actualSpeed = baseSpeed;
-      // 360° Phase Steering: The array electronically steers in a full circle
       this.currentAngle = (this.currentAngle + actualSpeed * dt) % 360;
-
-      // Update inherited array to physically steer the beam via phase shifts
-      this.array.update_parameters({ ...state, steering: this.currentAngle });
 
       // 1. Find all objects in broad beam
       const detectedInBeam = objects.filter(obj =>
@@ -707,9 +721,6 @@ export class Radar_Simulator extends ApplicationMode {
 
       const currentTask = this.focusQueue[this.focusQueueIndex];
       this.currentAngle = currentTask.angle;
-
-      // Update inherited array to physically steer the beam via phase shifts
-      this.array.update_parameters({ ...state, steering: this.currentAngle });
 
       if (this.dwellTimer <= 0) {
         // Resolve sub-targets within the 3° beam at the current lock angle
