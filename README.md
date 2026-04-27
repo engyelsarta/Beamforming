@@ -1,5 +1,7 @@
 # Beamforming Simulator Suite
 
+Beamforming, phased arrays, and direction of arrival (DOA) are fundamental concepts in modern technologies, ranging from wireless communications, 5G, radar, and sonar to biomedical applications like ultrasound and tumor ablations. The core ideas of beamforming are delays, phase-shifts, and constructive/destructive interference, which are all direct applications of Fourier transform properties.
+
 A comprehensive suite of physics-based simulators for Beamforming, 5G Networking, Ultrasound, and Radar systems. This project provides real-time visualizations and analytical tools for understanding wave propagation and signal processing.
 
 ## Project Structure
