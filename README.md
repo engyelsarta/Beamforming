@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/283984db-a6b1-4d82-8a8f-b14f3d470dbf
 ### 2. 5G Network Simulator
 - **Physics Principles**: Based on electromagnetic wave propagation and beam steering. The simulator models how high-frequency waves interact with obstacles and how beamforming enhances signal strength and coverage.
 - **Key Concepts**:
-  - MIMO (Multiple Input Multiple Output): Enables multiple users to connect to a single tower by using multiple antennas for simultaneous data streams.
+  - MIMO (Multiple Input Multiple Output): Enables multiple users to connect to a single tower.
   - Beamforming: Directs signals to specific users, improving efficiency and reducing interference.
   - Path Loss Models: Simulates signal attenuation over distance and through obstacles.
 - **Features**:
@@ -44,7 +44,6 @@ https://github.com/user-attachments/assets/26560195-7c42-4ae0-bf49-a5024eb920e4
 - **Key Concepts**:
   - Acoustic Impedance: Governs the reflection and transmission of ultrasound waves at boundaries.
   - Doppler Effect: Used to measure blood flow velocity in medical imaging.
-  - Time-Gain Compensation: Adjusts for signal attenuation at greater depths.
 - **Features**:
   - Simulates ultrasonic wave interactions.
   - Focuses on medical imaging principles and phased array transducers.
@@ -56,16 +55,19 @@ https://github.com/user-attachments/assets/dacc6964-8918-4588-8f18-31e9c42a26d2
 
 
 ### 4. Radar Simulator
-- **Physics Principles**: Explores the Doppler effect, radar cross-section, and signal reflection. The simulator visualizes how radar systems detect and track objects using electromagnetic waves.
+- **Physics Principles**: Explores radar cross-section (RCS) and electromagnetic wave reflection. The simulator visualizes how radar systems detect, track, and estimate object properties using beamforming techniques.
+
 - **Key Concepts**:
-  - Pulse-Doppler Radar: Measures velocity and distance of objects.
-  - Radar Cross Section (RCS): Determines how detectable an object is by radar.
-  - FMCW (Frequency Modulated Continuous Wave): Used for high-resolution range and velocity measurements.
+  - **Radar Cross Section (RCS)**: Represents how detectable an object is by radar. In this simulator, RCS is used to estimate the apparent size of the target based on the reflected signal strength.
+  - **FMCW (Frequency Modulated Continuous Wave)**: Used for high-resolution range and velocity measurements through frequency modulation of the transmitted signal.
+
 - **Features**:
-  - Real-time radar scanning and object detection.
-  - Signal history and Doppler effect visualization.
+  - **Electronically steered radar scanning** using phase steering (beamforming) instead of mechanical rotation.
+  - **Dual-mode beam operation**:
+    - Wide beam for detection and area coverage.
+    - Narrow beam for target locking and accurate estimation.
+  - Real-time radar scanning, object detection, and tracking.
   - Interactive radar environment configuration.
-  - Polar and Cartesian plots for radar data representation.
 
 https://github.com/user-attachments/assets/9f561954-33db-4e2a-9b42-bb45a8a7e281
 
