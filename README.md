@@ -17,6 +17,11 @@ A comprehensive suite of physics-based simulators for Beamforming, 5G Networking
   - Visualizes wave interference patterns.
   - Interactive adjustment of source parameters.
   - Real-time computation of phased array dynamics.
+    
+
+https://github.com/user-attachments/assets/283984db-a6b1-4d82-8a8f-b14f3d470dbf
+
+
 
 ### 2. 5G Network Simulator
 - **Physics Principles**: Based on electromagnetic wave propagation and beam steering. The simulator models how high-frequency waves interact with obstacles and how beamforming enhances signal strength and coverage.
@@ -28,6 +33,11 @@ A comprehensive suite of physics-based simulators for Beamforming, 5G Networking
   - Simulates 5G signal propagation in a network map.
   - Dynamic beam steering towards user equipment.
   - Coverage analysis based on frequency and array gain.
+    
+
+https://github.com/user-attachments/assets/26560195-7c42-4ae0-bf49-a5024eb920e4
+
+
 
 ### 3. Ultrasound Simulator
 - **Physics Principles**: Demonstrates the propagation of ultrasonic waves through different media. The simulator incorporates the physics of reflection, refraction, and attenuation to mimic medical imaging.
@@ -39,6 +49,8 @@ A comprehensive suite of physics-based simulators for Beamforming, 5G Networking
   - Simulates ultrasonic wave interactions.
   - Focuses on medical imaging principles and phased array transducers.
   - Includes A-Mode, B-Mode, Doppler, and Phantom viewers for detailed analysis.
+
+
 
 ### 4. Radar Simulator
 - **Physics Principles**: Explores the Doppler effect, radar cross-section, and signal reflection. The simulator visualizes how radar systems detect and track objects using electromagnetic waves.
