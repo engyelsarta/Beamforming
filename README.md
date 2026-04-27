@@ -4,10 +4,7 @@ Beamforming, phased arrays, and direction of arrival (DOA) are fundamental conce
 
 A comprehensive suite of physics-based simulators for Beamforming, 5G Networking, Ultrasound, and Radar systems. This project provides real-time visualizations and analytical tools for understanding wave propagation and signal processing.
 
-## Project Structure
-
-- `frontend/`: React-based interactive simulator with a native physics engine.
-- `backend/`: Placeholder for server-side processing and data storage (FastAPI).
+<img width="1909" height="908" alt="Screenshot 2026-04-27 105436" src="https://github.com/user-attachments/assets/c9e7b3f2-24f3-4d34-9f2d-7c9432300a1c" />
 
 ## Applications
 
